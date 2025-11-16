@@ -1,0 +1,2 @@
+When running commands use arrow keys to choose recommendations 
+figure out how to use the debugger 
