@@ -1,2 +1,7 @@
 When running commands use arrow keys to choose recommendations 
 figure out how to use the debugger 
+when pressing definition sometimes it opens a split below, i prefer it uses snack, which sometimes it does.
+
+when using K in insert mode it doesnt minimise with esc i have to press K again. would be nice if any arrow key or esc  closes this.  maybe it could just be when i hold K 
+would like to be able to toggle a terminal open below with ctrl '
+
