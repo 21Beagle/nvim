@@ -1,7 +1,13 @@
 When running commands use arrow keys to choose recommendations 
 figure out how to use the debugger 
-when pressing definition sometimes it opens a split below, i prefer it uses snack, which sometimes it does.
 
 when using K in insert mode it doesnt minimise with esc i have to press K again. would be nice if any arrow key or esc  closes this.  maybe it could just be when i hold K 
 would like to be able to toggle a terminal open below with ctrl '
 
+when there is a selection and either [] {} "" '' is pressed, they should be added either end of the selection
+
+add  terminal at the bottom
+
+remove the double instances of go to definition
+
+file explorer to show which file i am in

@@ -84,14 +84,6 @@ map("n", "<A-Down>", ":m .+1<CR>==", opts)
 map("v", "<A-Up>", ":m '<-2<CR>gv=gv", opts)
 map("v", "<A-Down>", ":m '>+1<CR>gv=gv", opts)
 
--- Ctrl+Right / Ctrl+Left move by words (respecting '.' as separator)
-map("n", "<C-Right>", "w", opts)
-map("n", "<C-Left>", "b", opts)
-map("i", "<C-Right>", "<C-o>w", opts)
-map("i", "<C-Left>", "<C-o>b", opts)
-map("v", "<C-Right>", "w", opts)
-map("v", "<C-Left>", "b", opts)
-
 -- Close buffers
 map("n", "<C-q>", "<cmd>bd<CR>", opts)
 map("i", "<C-q>", "<Esc><cmd>bd<CR>", opts)
@@ -211,5 +203,150 @@ vim.api.nvim_create_autocmd("LspAttach", {
 
 		-- Go back (jumplist)
 		map("n", "gb", "<C-o>", o)
+
+		map("n", "<F2>", vim.lsp.buf.rename, o)
 	end,
 })
+
+-- Surround visual selection with [], {}, "", ''
+local function surround_visual(open, close)
+	-- change selection to open+close, then paste original text between them
+	local esc = vim.api.nvim_replace_termcodes("<Esc>", true, false, true)
+	local keys = "" .. open .. close .. esc .. "h" .. "p"
+	keys = vim.api.nvim_replace_termcodes(keys, true, false, true)
+	vim.api.nvim_feedkeys(keys, "n", false)
+end
+
+-- []  (both [ and ] do the same thing in visual mode)
+map("v", "[", function()
+	surround_visual("[", "]")
+end, opts)
+
+map("v", "]", function()
+	surround_visual("[", "]")
+end, opts)
+
+map("v", "(", function()
+	surround_visual("(", ")")
+end, opts)
+
+map("v", ")", function()
+	surround_visual(")", ")")
+end, opts)
+
+-- {}
+map("v", "{", function()
+	surround_visual("{", "}")
+end, opts)
+
+map("v", "}", function()
+	surround_visual("{", "}")
+end, opts)
+
+-- ""
+map("v", '"', function()
+	surround_visual('"', '"')
+end, opts)
+
+-- ''
+map("v", "'", function()
+	surround_visual("'", "'")
+end, opts)
+
+----------------------------------------------------------------------
+-- Smart Ctrl+Left / Ctrl+Right + Shift (VSCode-style selection)
+----------------------------------------------------------------------
+
+local function is_word_char(ch)
+	return ch ~= "" and ch:match("[%w_]") ~= nil
+end
+
+local function smart_ctrl_right()
+	local line = vim.fn.getline(".")
+	local col = vim.fn.col(".") -- 1-based
+	local curr = line:sub(col, col)
+	local nextc = line:sub(col + 1, col + 1)
+
+	local at_word_end = is_word_char(curr) and not is_word_char(nextc)
+
+	local motion
+	if at_word_end then
+		-- already at end of a word -> go to START of next word
+		motion = "w"
+	else
+		-- inside word or in space -> go to END of current/next word
+		motion = "e"
+	end
+
+	local keys = vim.api.nvim_replace_termcodes(motion, true, false, true)
+	vim.api.nvim_feedkeys(keys, "n", false)
+end
+
+local function smart_ctrl_left()
+	local line = vim.fn.getline(".")
+	local col = vim.fn.col(".")
+	local curr = line:sub(col, col)
+	local prev = line:sub(col - 1, col - 1)
+
+	local at_word_start = is_word_char(curr) and not is_word_char(prev)
+
+	local motion
+	if at_word_start then
+		-- at start of word -> go to END of previous word
+		motion = "ge"
+	else
+		-- inside word or in space -> go to START of current/previous word
+		motion = "b"
+	end
+
+	local keys = vim.api.nvim_replace_termcodes(motion, true, false, true)
+	vim.api.nvim_feedkeys(keys, "n", false)
+end
+
+-- Plain Ctrl+Arrows (move only)
+map("n", "<C-Right>", smart_ctrl_right, opts)
+map("n", "<C-Left>", smart_ctrl_left, opts)
+
+map("v", "<C-Right>", smart_ctrl_right, opts)
+map("v", "<C-Left>", smart_ctrl_left, opts)
+
+map("i", "<C-Right>", function()
+	smart_ctrl_right()
+end, opts)
+
+map("i", "<C-Left>", function()
+	smart_ctrl_left()
+end, opts)
+
+-- Ctrl+Shift+Arrows (selection like VS Code)
+local function start_visual_and(fn)
+	local v = vim.api.nvim_replace_termcodes("v", true, false, true)
+	vim.api.nvim_feedkeys(v, "n", false)
+	fn()
+end
+
+-- Normal mode: start selection then move
+map("n", "<C-S-Right>", function()
+	start_visual_and(smart_ctrl_right)
+end, opts)
+
+map("n", "<C-S-Left>", function()
+	start_visual_and(smart_ctrl_left)
+end, opts)
+
+-- Insert mode: leave insert, start selection, move
+map("i", "<C-S-Right>", function()
+	local esc = vim.api.nvim_replace_termcodes("<Esc>", true, false, true)
+	vim.api.nvim_feedkeys(esc, "n", false)
+	start_visual_and(smart_ctrl_right)
+end, opts)
+
+map("i", "<C-S-Left>", function()
+	local esc = vim.api.nvim_replace_termcodes("<Esc>", true, false, true)
+	vim.api.nvim_feedkeys(esc, "n", false)
+	start_visual_and(smart_ctrl_left)
+end, opts)
+
+-- Visual mode: just extend the existing selection
+map("v", "<C-S-Right>", smart_ctrl_right, opts)
+map("v", "<C-S-Left>", smart_ctrl_left, opts)

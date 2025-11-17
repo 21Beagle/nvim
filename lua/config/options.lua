@@ -7,4 +7,7 @@
 vim.opt.clipboard = "unnamedplus"
 vim.opt.keymodel:append({ "startsel", "stopsel" })
 vim.opt.iskeyword:remove(".")
+vim.opt.iskeyword:remove("(")
+vim.opt.iskeyword:remove(")")
+vim.opt.iskeyword:remove(" ")
 vim.opt.selectmode:append("key")
