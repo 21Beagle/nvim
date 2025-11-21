@@ -9,63 +9,17 @@ local opts = { noremap = true, silent = true }
 -- General editor keymaps
 ----------------------------------------------------------------------
 
-----------------------------------------------------------------------
--- VS Code–style Ctrl+A / C / X / Y
-----------------------------------------------------------------------
-
--- If you yanked a whole line with <C-c>, this will paste as a whole line.
-map("n", "<C-v>", '"+p', opts)
-map("v", "<C-v>", '"+p', opts)
--- Paste in insert mode: go to normal, paste from +, then back to insert
-map("i", "<C-v>", function()
-	local keys = vim.api.nvim_replace_termcodes('<Esc>"+pi', true, false, true)
-	vim.api.nvim_feedkeys(keys, "n", false)
-end, opts)
-
 -- Select all
 map("n", "<C-a>", "ggVG", opts)
-map("v", "<C-a>", "<Esc>ggVG", opts)
-map("i", "<C-a>", "<Esc>ggVG", opts)
-
--- Copy
--- Normal: copy current line (VS Code behaviour when nothing selected)
--- Visual: copy selection
-map("n", "<C-c>", '"+yy', opts)
-map("i", "<C-c>", '<Esc>"+yyi', opts)
-map("v", "<C-c>", '"+y', opts)
-
--- Cut
--- Normal: cut current line
--- Visual: cut selection
-map("i", "<C-x>", '<Esc>"+ddi', opts)
-map("n", "<C-x>", '"+dd', opts)
-map("v", "<C-x>", '"+d', opts)
 
 -- Redo
 map("n", "<C-y>", "<C-r>", opts)
-map("v", "<C-y>", "<C-r>", opts)
-map("i", "<C-y>", "<C-o><C-r>", opts)
 
 -- Normal: undo
 map("n", "<C-z>", "u", opts)
 
--- Insert: undo but stay in insert mode
-map("i", "<C-z>", "<C-o>u", opts)
-
--- Visual: leave visual, undo, stay in normal
-map("v", "<C-z>", "<Esc>u", opts)
-
 -- Ctrl+S to save (normal / insert / visual)
 map("n", "<C-s>", "<cmd>w<CR>", opts)
-map("i", "<C-s>", "<Esc><cmd>w<CR>a", opts)
-map("v", "<C-s>", "<Esc><cmd>w<CR>gv", opts)
-
--- Move between buffers with Alt+Left/Right
-map("n", "<A-Left>", "<cmd>bprevious<CR>", opts)
-map("n", "<A-Right>", "<cmd>bnext<CR>", opts)
-
-map("n", "<C-f>", "/", opts)
-map("i", "<C-f>", "<Esc>/", opts)
 
 -- Ctrl + / : toggle line comments (like VS Code / Rider)
 map("n", "<C-/>", function()
@@ -84,23 +38,11 @@ map("n", "<A-Down>", ":m .+1<CR>==", opts)
 map("v", "<A-Up>", ":m '<-2<CR>gv=gv", opts)
 map("v", "<A-Down>", ":m '>+1<CR>gv=gv", opts)
 
--- Close buffers
-map("n", "<C-q>", "<cmd>bd<CR>", opts)
-map("i", "<C-q>", "<Esc><cmd>bd<CR>", opts)
-
 -- Ctrl+| : vertical split of the current file
 map("n", "<C-\\>", "<cmd>vsplit<CR>", opts)
 
--- Toggle file explorer sidebar (like VSCode Ctrl+B)
-map("n", "<C-b>", "<cmd>Neotree toggle<CR>", opts)
-
 -- Toggle integrated terminal (leader + ')
 map("n", "<leader>'", "<cmd>ToggleTerm direction=float<CR>", opts)
-
--- Ctrl+P -> project files (same UI as <leader><leader>, Snacks picker)
-map("n", "<C-p>", function()
-	Snacks.picker.files()
-end, opts)
 
 -- "Command palette" (VS Code style) on <leader>p using Snacks commands picker
 map("n", "<leader>p", function()
@@ -252,101 +194,3 @@ end, opts)
 map("v", "'", function()
 	surround_visual("'", "'")
 end, opts)
-
-----------------------------------------------------------------------
--- Smart Ctrl+Left / Ctrl+Right + Shift (VSCode-style selection)
-----------------------------------------------------------------------
-
-local function is_word_char(ch)
-	return ch ~= "" and ch:match("[%w_]") ~= nil
-end
-
-local function smart_ctrl_right()
-	local line = vim.fn.getline(".")
-	local col = vim.fn.col(".") -- 1-based
-	local curr = line:sub(col, col)
-	local nextc = line:sub(col + 1, col + 1)
-
-	local at_word_end = is_word_char(curr) and not is_word_char(nextc)
-
-	local motion
-	if at_word_end then
-		-- already at end of a word -> go to START of next word
-		motion = "w"
-	else
-		-- inside word or in space -> go to END of current/next word
-		motion = "e"
-	end
-
-	local keys = vim.api.nvim_replace_termcodes(motion, true, false, true)
-	vim.api.nvim_feedkeys(keys, "n", false)
-end
-
-local function smart_ctrl_left()
-	local line = vim.fn.getline(".")
-	local col = vim.fn.col(".")
-	local curr = line:sub(col, col)
-	local prev = line:sub(col - 1, col - 1)
-
-	local at_word_start = is_word_char(curr) and not is_word_char(prev)
-
-	local motion
-	if at_word_start then
-		-- at start of word -> go to END of previous word
-		motion = "ge"
-	else
-		-- inside word or in space -> go to START of current/previous word
-		motion = "b"
-	end
-
-	local keys = vim.api.nvim_replace_termcodes(motion, true, false, true)
-	vim.api.nvim_feedkeys(keys, "n", false)
-end
-
--- Plain Ctrl+Arrows (move only)
-map("n", "<C-Right>", smart_ctrl_right, opts)
-map("n", "<C-Left>", smart_ctrl_left, opts)
-
-map("v", "<C-Right>", smart_ctrl_right, opts)
-map("v", "<C-Left>", smart_ctrl_left, opts)
-
-map("i", "<C-Right>", function()
-	smart_ctrl_right()
-end, opts)
-
-map("i", "<C-Left>", function()
-	smart_ctrl_left()
-end, opts)
-
--- Ctrl+Shift+Arrows (selection like VS Code)
-local function start_visual_and(fn)
-	local v = vim.api.nvim_replace_termcodes("v", true, false, true)
-	vim.api.nvim_feedkeys(v, "n", false)
-	fn()
-end
-
--- Normal mode: start selection then move
-map("n", "<C-S-Right>", function()
-	start_visual_and(smart_ctrl_right)
-end, opts)
-
-map("n", "<C-S-Left>", function()
-	start_visual_and(smart_ctrl_left)
-end, opts)
-
--- Insert mode: leave insert, start selection, move
-map("i", "<C-S-Right>", function()
-	local esc = vim.api.nvim_replace_termcodes("<Esc>", true, false, true)
-	vim.api.nvim_feedkeys(esc, "n", false)
-	start_visual_and(smart_ctrl_right)
-end, opts)
-
-map("i", "<C-S-Left>", function()
-	local esc = vim.api.nvim_replace_termcodes("<Esc>", true, false, true)
-	vim.api.nvim_feedkeys(esc, "n", false)
-	start_visual_and(smart_ctrl_left)
-end, opts)
-
--- Visual mode: just extend the existing selection
-map("v", "<C-S-Right>", smart_ctrl_right, opts)
-map("v", "<C-S-Left>", smart_ctrl_left, opts)
