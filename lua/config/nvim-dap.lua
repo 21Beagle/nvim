@@ -1,5 +1,10 @@
 local dap = require("dap")
+dap.set_log_level("TRACE") -- or "DEBUG" if you want less spam
 
+vim.api.nvim_create_user_command("DapLog", function()
+	local path = vim.fn.stdpath("cache") .. "/dap.log"
+	vim.cmd("edit " .. path)
+end, {})
 ----------------------------------------------------------------------
 -- PATH HELPERS
 ----------------------------------------------------------------------
@@ -163,9 +168,10 @@ local function start_debug()
 			name = "Run",
 			program = dll, -- DLL, not EXE
 			cwd = vim.fn.fnamemodify(dll, ":h"),
-			stopAtEntry = false,
+			stopAtEntry = true,
 			console = "internalConsole",
-			justMyCode = false,
+			justMyCode = true,
+			requireExactSource = false,
 		})
 	end)
 end
