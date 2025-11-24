@@ -9,6 +9,8 @@ local opts = { noremap = true, silent = true }
 -- General editor keymaps
 ----------------------------------------------------------------------
 
+map("n", "<CR>", "o<Esc>", opts)
+map("n", "<S-CR>", "O<Esc>", opts)
 -- Select all
 map("n", "<C-a>", "ggVG", opts)
 
