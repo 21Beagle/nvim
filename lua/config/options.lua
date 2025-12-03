@@ -15,4 +15,15 @@ vim.opt.iskeyword:remove(".")
 vim.opt.iskeyword:remove("(")
 vim.opt.iskeyword:remove(")")
 vim.opt.iskeyword:remove(" ")
+-- No conceal anywhere (prevents => turning into arrows, etc.)
+vim.opt.conceallevel = 0
+vim.opt.concealcursor = ""
+
+vim.api.nvim_create_autocmd({ "BufEnter", "BufWinEnter", "FileType" }, {
+	group = vim.api.nvim_create_augroup("NoConcealAnywhere", { clear = true }),
+	callback = function()
+		vim.opt_local.conceallevel = 0
+		vim.opt_local.concealcursor = ""
+	end,
+})
 vim.opt.selectmode:append("key")

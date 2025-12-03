@@ -16,7 +16,7 @@ return {
 	{
 		"LazyVim/LazyVim",
 		opts = {
-			colorscheme = "gruvbox",
+			colorscheme = "onedark",
 		},
 	},
 
@@ -114,7 +114,7 @@ return {
 	-- for typescript, LazyVim also includes extra specs to properly setup lspconfig,
 	-- treesitter, mason and typescript.nvim. So instead of the above, you can use:
 	{ import = "lazyvim.plugins.extras.lang.typescript" },
-
+	{ import = "lazyvim.plugins.extras.coding.rainbow-delimiters" },
 	-- add more treesitter parsers
 	{
 		"nvim-treesitter/nvim-treesitter",
@@ -183,6 +183,12 @@ return {
 	-- add jsonls and schemastore packages, and setup treesitter for json, json5 and jsonc
 	{ import = "lazyvim.plugins.extras.lang.json" },
 
+	{
+		"fedepujol/bracketpair.nvim",
+		config = function()
+			require("bracketpair").setup({})
+		end,
+	},
 	-- add any tools you want to have installed below
 	{
 		"williamboman/mason.nvim",
@@ -194,5 +200,23 @@ return {
 				"flake8",
 			},
 		},
+	},
+	{
+		"LazyVim/LazyVim",
+		event = "VeryLazy",
+		config = function()
+			pcall(vim.keymap.del, "n", "<leader>cc")
+			pcall(vim.keymap.del, "v", "<leader>cc")
+
+			vim.keymap.set("n", "<leader>cc", function()
+				require("Comment.api").toggle.linewise.current()
+			end, { desc = "Comment line" })
+
+			vim.keymap.set("v", "<leader>cc", function()
+				local esc = vim.api.nvim_replace_termcodes("<ESC>", true, false, true)
+				vim.api.nvim_feedkeys(esc, "nx", false)
+				require("Comment.api").toggle.linewise(vim.fn.visualmode())
+			end, { desc = "Comment selection" })
+		end,
 	},
 }

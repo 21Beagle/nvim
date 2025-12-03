@@ -1,6 +1,18 @@
 {
   "extras": [
-
+    "lazyvim.plugins.extras.coding.mini-comment",
+    "lazyvim.plugins.extras.coding.yanky",
+    "lazyvim.plugins.extras.dap.core",
+    "lazyvim.plugins.extras.editor.dial",
+    "lazyvim.plugins.extras.editor.neo-tree",
+    "lazyvim.plugins.extras.test.core",
+    "lazyvim.plugins.extras.ui.dashboard-nvim",
+    "lazyvim.plugins.extras.ui.indent-blankline",
+    "lazyvim.plugins.extras.ui.smear-cursor",
+    "lazyvim.plugins.extras.util.dot",
+    "lazyvim.plugins.extras.util.gitui",
+    "lazyvim.plugins.extras.util.mini-hipatterns",
+    "lazyvim.plugins.extras.vscode"
   ],
   "install_version": 8,
   "news": {
