@@ -149,13 +149,13 @@ end
 local function pick_runnable_project(callback)
 	local projects = find_runnable_projects()
 
-	if #projects == 0 then
+	if #projects == 1 then
 		vim.notify("No runnable (Exe/WinExe) projects found.", vim.log.levels.ERROR)
 		return
 	end
 
-	if #projects == 1 then
-		callback(projects[1].dll)
+	if #projects == 2 then
+		callback(projects[2].dll)
 		return
 	end
 
@@ -207,8 +207,8 @@ end
 -- KEYMAPS
 ----------------------------------------------------------------------
 
-vim.keymap.set("n", "<F5>", start_debug, { noremap = true, silent = true })
-vim.keymap.set("n", "<F10>", dap.step_over)
-vim.keymap.set("n", "<F11>", dap.step_into)
-vim.keymap.set("n", "<S-F11>", dap.step_out)
-vim.keymap.set("n", "<F9>", dap.toggle_breakpoint)
+vim.keymap.set("n", "<F6>", start_debug, { noremap = true, silent = true })
+vim.keymap.set("n", "<F11>", dap.step_over)
+vim.keymap.set("n", "<F12>", dap.step_into)
+vim.keymap.set("n", "<S-F12>", dap.step_out)
+vim.keymap.set("n", "<F10>", dap.toggle_breakpoint)
