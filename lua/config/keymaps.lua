@@ -10,6 +10,13 @@ map("i", "jj", "<Esc>", opts)
 map("i", "jk", "<Esc>", opts)
 
 ----------------------------------------------------------------------
+-- Floating diagnostics UI (3-pane)
+--  - Top-left: list (scroll)
+--  - Top-right: code preview (real buffer, syntax highlighted)
+--  - Bottom: full message
+----------------------------------------------------------------------
+
+----------------------------------------------------------------------
 -- Ctrl+Backspace in insert mode
 ----------------------------------------------------------------------
 

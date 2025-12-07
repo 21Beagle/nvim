@@ -2,3 +2,4 @@
 require("config.lazy")
 require("features.dotnet-build")
 require("config.lsp")
+require("features.custom-diagnostics")
