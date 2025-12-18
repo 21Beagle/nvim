@@ -3,8 +3,14 @@ return {
     'seblyng/roslyn.nvim',
     ft = { 'cs', 'csproj', 'sln', 'razor', 'cshtml' },
     opts = {
-      -- "auto" | "roslyn" | "off"
       filewatching = 'auto',
+    },
+    keys = {
+      {
+        '<leader>mr',
+        '<cmd>Roslyn restart<CR>',
+        desc = '[R]oslyn restart',
+      },
     },
   },
 }

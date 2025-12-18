@@ -1,5 +1,4 @@
 --[[
-
 =====================================================================
 ==================== READ THIS BEFORE CONTINUING ====================
 =====================================================================
@@ -90,8 +89,9 @@ P.S. You can delete this when you're done too. It's your config now! :)
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+vim.g.python3_host_prog = 'C:\\Users\\JackBeagle\\AppData\\Local\\Programs\\Python\\Python311\\python.exe'
 -- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = false
+vim.g.have_nerd_font = true
 
 -- [[ Setting options ]]
 -- See `:help vim.o`
@@ -102,7 +102,7 @@ vim.g.have_nerd_font = false
 vim.o.number = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
--- vim.o.relativenumber = true
+vim.o.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.o.mouse = 'a'
@@ -149,8 +149,9 @@ vim.o.splitbelow = true
 --  It is very similar to `vim.o` but offers an interface for conveniently interacting with tables.
 --   See `:help lua-options`
 --   and `:help lua-options-guide`
+--
 vim.o.list = true
-vim.opt.listchars = { tab = '» ', trail = '·', nbsp = '␣' }
+vim.opt.listchars = { tab = '│ ', trail = '·', nbsp = '␣' }
 
 -- Preview substitutions live, as you type!
 vim.o.inccommand = 'split'
@@ -165,6 +166,11 @@ vim.o.scrolloff = 10
 -- instead raise a dialog asking if you wish to save the current file(s)
 -- See `:help 'confirm'`
 vim.o.confirm = true
+
+-- Sessions must restore cwd (needed for neo-tree + persisted.nvim)
+if not string.find(vim.o.sessionoptions, 'curdir', 1, true) then
+  vim.o.sessionoptions = vim.o.sessionoptions .. ',curdir'
+end
 
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
@@ -185,19 +191,19 @@ vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagn
 vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 
 -- TIP: Disable arrow keys in normal mode
--- vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
--- vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
--- vim.keymap.set('n', '<up>', '<cmd>echo "Use k to move!!"<CR>')
--- vim.keymap.set('n', '<down>', '<cmd>echo "Use j to move!!"<CR>')
+vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
+vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
+vim.keymap.set('n', '<up>', '<cmd>echo "Use k to move!!"<CR>')
+vim.keymap.set('n', '<down>', '<cmd>echo "Use j to move!!"<CR>')
 
 -- Keybinds to make split navigation easier.
 --  Use CTRL+<hjkl> to switch between windows
 --
 --  See `:help wincmd` for a list of all window commands
-vim.keymap.set('n', '<C-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
-vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
-vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
-vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
+--vim.keymap.set('n', '<S-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
+--vim.keymap.set('n', '<S-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
+--vim.keymap.set('n', '<S-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
+--vim.keymap.set('n', '<S-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
 -- NOTE: Some terminals have colliding keymaps or are not able to send distinct keycodes
 -- vim.keymap.set("n", "<C-S-h>", "<C-w>H", { desc = "Move window to the left" })
@@ -347,6 +353,7 @@ require('lazy').setup({
         { '<leader>s', group = '[S]earch' },
         { '<leader>t', group = '[T]oggle' },
         { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
+        { '<leader>m', group = '[M]isc' },
       },
     },
   },
@@ -404,22 +411,37 @@ require('lazy').setup({
       -- [[ Configure Telescope ]]
       -- See `:help telescope` and `:help telescope.setup()`
       require('telescope').setup {
-        -- You can put your default mappings / updates / etc. in here
-        --  All the info you're looking for is in `:help telescope.setup()`
-        --
-        -- defaults = {
-        --   mappings = {
-        --     i = { ['<c-enter>'] = 'to_fuzzy_refine' },
-        --   },
-        -- },
-        -- pickers = {}
+        defaults = {
+          layout_strategy = 'horizontal',
+          layout_config = {
+            prompt_position = 'top',
+          },
+          sorting_strategy = 'ascending',
+
+          -- show only file basename (tail), not full path
+          path_display = { 'tail' }, -- :contentReference[oaicite:1]{index=1}
+        },
+
         extensions = {
           ['ui-select'] = {
             require('telescope.themes').get_dropdown(),
           },
+
+          frecency = {
+            default_workspace = 'CWD',
+            show_unindexed = true,
+
+            -- ✅ hide Neo-tree "filesystem" / pseudo-buffers from frecency
+            -- (frecency can index non-file buffers unless you ignore them)
+            ignore_patterns = {
+              'term://*',
+              'neo%-tree filesystem*',
+              'neo%-tree popup*',
+              'neo%-tree*',
+            },
+          },
         },
       }
-
       -- Enable Telescope extensions if they are installed
       pcall(require('telescope').load_extension, 'fzf')
       pcall(require('telescope').load_extension, 'ui-select')
@@ -429,13 +451,19 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>sh', builtin.help_tags, { desc = '[S]earch [H]elp' })
       vim.keymap.set('n', '<leader>sk', builtin.keymaps, { desc = '[S]earch [K]eymaps' })
       vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })
-      vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
+      vim.keymap.set('n', '<leader>ss', builtin.lsp_document_symbols, { desc = '[S]earch [S]ymbols (document)' })
+      vim.keymap.set('n', '<leader>sp', builtin.builtin, { desc = '[S]earch [P]ickers (Telescope)' })
       vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = '[S]earch current [W]ord' })
       vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
       vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
-      vim.keymap.set('n', '<leader><leader>', builtin.buffers, { desc = '[ ] Find existing buffers' })
+
+      vim.keymap.set('n', '<leader><leader>', function()
+        require('telescope').extensions.frecency.frecency { workspace = 'CWD' }
+      end, { desc = '[ ] Files in CWD by recency' })
+
+      vim.keymap.set('n', '<leader>sb', builtin.buffers, { desc = '[S]earch [B]uffers' })
 
       -- Slightly advanced example of overriding default behavior and theme
       vim.keymap.set('n', '<leader>/', function()
@@ -537,40 +565,40 @@ require('lazy').setup({
 
           -- Rename the variable under your cursor.
           --  Most Language Servers support renaming across files, etc.
-          map('grn', vim.lsp.buf.rename, '[R]e[n]ame')
+          map('<leader>cr', vim.lsp.buf.rename, '[R]e[n]ame')
 
           -- Execute a code action, usually your cursor needs to be on top of an error
           -- or a suggestion from your LSP for this to activate.
-          map('gra', vim.lsp.buf.code_action, '[G]oto Code [A]ction', { 'n', 'x' })
+          map('<leader>ca', vim.lsp.buf.code_action, '[G]oto Code [A]ction', { 'n', 'x' })
 
           -- Find references for the word under your cursor.
-          map('grr', require('telescope.builtin').lsp_references, '[G]oto [R]eferences')
+          map('gr', require('telescope.builtin').lsp_references, '[G]oto [R]eferences')
 
           -- Jump to the implementation of the word under your cursor.
           --  Useful when your language has ways of declaring types without an actual implementation.
-          map('gri', require('telescope.builtin').lsp_implementations, '[G]oto [I]mplementation')
+          map('gi', require('telescope.builtin').lsp_implementations, '[G]oto [I]mplementation')
 
           -- Jump to the definition of the word under your cursor.
           --  This is where a variable was first declared, or where a function is defined, etc.
           --  To jump back, press <C-t>.
-          map('grd', require('telescope.builtin').lsp_definitions, '[G]oto [D]efinition')
+          map('gd', require('telescope.builtin').lsp_definitions, '[G]oto [D]efinition')
 
           -- WARN: This is not Goto Definition, this is Goto Declaration.
           --  For example, in C this would take you to the header.
-          map('grD', vim.lsp.buf.declaration, '[G]oto [D]eclaration')
+          map('gD', vim.lsp.buf.declaration, '[G]oto [D]eclaration')
 
           -- Fuzzy find all the symbols in your current document.
           --  Symbols are things like variables, functions, types, etc.
-          map('gO', require('telescope.builtin').lsp_document_symbols, 'Open Document Symbols')
+          map('go', require('telescope.builtin').lsp_document_symbols, 'Open Document Symbols')
 
           -- Fuzzy find all the symbols in your current workspace.
           --  Similar to document symbols, except searches over your entire project.
-          map('gW', require('telescope.builtin').lsp_dynamic_workspace_symbols, 'Open Workspace Symbols')
+          map('gw', require('telescope.builtin').lsp_dynamic_workspace_symbols, 'Open Workspace Symbols')
 
           -- Jump to the type of the word under your cursor.
           --  Useful when you're not sure what type a variable is and you want to see
           --  the definition of its *type*, not where it was *defined*.
-          map('grt', require('telescope.builtin').lsp_type_definitions, '[G]oto [T]ype Definition')
+          map('gt', require('telescope.builtin').lsp_type_definitions, '[G]oto [T]ype Definition')
 
           -- This function resolves a difference between neovim nightly (version 0.11) and stable (version 0.10)
           ---@param client vim.lsp.Client
@@ -716,6 +744,7 @@ require('lazy').setup({
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
         'stylua', -- Used to format Lua code
+        'stylua',
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -773,11 +802,12 @@ require('lazy').setup({
         --
         -- You can use 'stop_after_first' to run the first available formatter from the list
         -- javascript = { "prettierd", "prettier", stop_after_first = true },
+        cs = { 'csharpier' },
       },
     },
   },
-
-  { -- Autocompletion
+  {
+    -- Autocompletion
     'saghen/blink.cmp',
     event = 'VimEnter',
     version = '1.*',
@@ -814,31 +844,20 @@ require('lazy').setup({
     --- @type blink.cmp.Config
     opts = {
       keymap = {
-        -- 'default' (recommended) for mappings similar to built-in completions
-        --   <c-y> to accept ([y]es) the completion.
-        --    This will auto-import if your LSP supports it.
-        --    This will expand snippets if the LSP sent a snippet.
-        -- 'super-tab' for tab to accept
-        -- 'enter' for enter to accept
-        -- 'none' for no mappings
-        --
-        -- For an understanding of why the 'default' preset is recommended,
-        -- you will need to read `:help ins-completion`
-        --
-        -- No, but seriously. Please read `:help ins-completion`, it is really good!
-        --
-        -- All presets have the following mappings:
-        -- <tab>/<s-tab>: move to right/left of your snippet expansion
-        -- <c-space>: Open menu or open docs if already open
-        -- <c-n>/<c-p> or <up>/<down>: Select next/previous item
-        -- <c-e>: Hide menu
-        -- <c-k>: Toggle signature help
-        --
-        -- See :h blink-cmp-config-keymap for defining your own keymap
-        preset = 'default',
+        preset = 'enter',
 
-        -- For more advanced Luasnip keymaps (e.g. selecting choice nodes, expansion) see:
-        --    https://github.com/L3MON4D3/LuaSnip?tab=readme-ov-file#keymaps
+        -- When the completion menu is open:
+        -- jj => start navigating it (select next item)
+        --['jj'] = { 'select_next', 'fallback' },
+
+        -- j/k navigate the completion list (only when menu is open)
+
+        -- Optional: make Enter accept the selected completion (usually what you want)
+        ['<CR>'] = { 'accept', 'fallback' },
+
+        -- Optional: open/close menu explicitly
+        ['<C-Space>'] = { 'show', 'show_documentation', 'hide_documentation' },
+        ['<C-e>'] = { 'hide' },
       },
 
       appearance = {
@@ -881,7 +900,7 @@ require('lazy').setup({
     -- change the command in the config to whatever the name of that colorscheme is.
     --
     -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
-    'folke/tokyonight.nvim',
+    'uhs-robert/oasis.nvim',
     priority = 1000, -- Make sure to load this before all the other start plugins.
     config = function()
       ---@diagnostic disable-next-line: missing-fields
@@ -917,7 +936,17 @@ require('lazy').setup({
       -- - saiw) - [S]urround [A]dd [I]nner [W]ord [)]Paren
       -- - sd'   - [S]urround [D]elete [']quotes
       -- - sr)'  - [S]urround [R]eplace [)] [']
-      require('mini.surround').setup()
+      require('mini.surround').setup {
+        mappings = {
+          add = 'sa',
+          delete = 'sd',
+          replace = 'sr',
+          find = 'sf',
+          find_left = 'sF',
+          highlight = 'sh',
+          update_n_lines = 'sn',
+        },
+      }
 
       -- Simple and easy statusline.
       --  You could remove this setup call if you don't like it,
@@ -984,7 +1013,10 @@ require('lazy').setup({
   --    This is the easiest way to modularize your config.
   --
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
-  -- { import = 'custom.plugins' },
+  { import = 'custom.plugins' },
+  { import = 'custom.features' },
+  { import = 'custom.colourschemes' },
+
   --
   -- For additional information with loading, sourcing and examples see `:help lazy.nvim-🔌-plugin-spec`
   -- Or use telescope!
@@ -1012,5 +1044,131 @@ require('lazy').setup({
   },
 })
 
--- The line beneath this is called `modeline`. See `:help modeline`
--- vim: ts=2 sts=2 sw=2 et
+-- Keybindings
+-- jj to escape (works in insert + command-line + terminal modes)
+-- Doesn't interfere with single "j" so list scrolling still works.
+
+local map = vim.keymap.set
+local opts = { noremap = true, silent = true }
+
+-- VSCode-style navigation (jump list)
+map('n', '<C-h>', '<C-o>', { desc = 'Jump back' })
+map('n', '<C-l>', '<C-i>', { desc = 'Jump forward' })
+
+-- jk / jj to escape insert mode
+map('i', 'jj', '<Esc>', opts)
+map('i', 'jk', '<Esc>', opts)
+
+-- Terminal mode: jj -> normal mode
+map('t', 'jj', '<C-\\><C-n>', opts)
+
+----------------------------------------------------------------------
+-- Ctrl+Backspace in insert mode
+-- Many terminals send <C-h> for Ctrl+Backspace
+map('i', '<C-h>', '<C-w>', { desc = 'Delete previous word (Ctrl+Backspace)', silent = true })
+map('i', '<C-BS>', '<C-w>', { desc = 'Delete previous word (Ctrl+Backspace)', silent = true })
+
+----------------------------------------------------------------------
+
+-- Window navigation (avoid <S-h>/<S-l> so bufferline can own those)
+map('n', '<leader>wh', '<C-w><C-h>', opts)
+map('n', '<leader>wl', '<C-w><C-l>', opts)
+map('n', '<leader>wj', '<C-w><C-j>', opts)
+map('n', '<leader>wk', '<C-w><C-k>', opts)
+
+-- General editor keymaps
+map('n', '<CR>', 'i<CR><Esc>l', opts)
+
+-- Select all
+map('n', '<C-a>', 'ggVG', opts)
+
+-- Redo
+map('n', '<C-y>', '<C-r>', opts)
+map('i', '<Esc><C-y>', '<C-r>', opts)
+
+-- Normal: undo
+map('n', '<C-z>', 'u', opts)
+map('i', '<C-z>', '<Esc>u', opts)
+
+-- Ctrl+S to save (normal / insert / visual)
+map('n', '<C-s>', '<cmd>w<CR>', opts)
+map('i', '<C-s>', '<Esc><cmd>w<CR>', opts)
+
+-- Buffers (bufferline should own these)
+-- <S-h> = previous buffer
+-- <S-l> = next buffer
+
+-- VSCode-style navigation (jump list)
+map('n', '<A-h>', '<C-o>', { desc = 'Jump back' })
+map('n', '<A-l>', '<C-i>', { desc = 'Jump forward' })
+-- Move lines up and down
+map('n', '<A-Up>', ':m .-2<CR>==', opts)
+map('n', '<A-k>', ':m .-2<CR>==', opts)
+map('n', '<A-Down>', ':m .+1<CR>==', opts)
+map('n', '<A-j>', ':m .+1<CR>==', opts)
+map('v', '<A-Up>', ":m '<-2<CR>gv=gv", opts)
+map('v', '<A-k>', ":m '<-2<CR>gv=gv", opts)
+map('v', '<A-Down>', ":m '>+1<CR>gv=gv", opts)
+map('v', '<A-j>', ":m '>+1<CR>gv=gv", opts)
+
+-- Window navigation (moved off Shift so Shift can be buffers)
+map('n', '<leader>wh', '<C-w><C-h>', { desc = 'Move focus to the left window' })
+map('n', '<leader>wl', '<C-w><C-l>', { desc = 'Move focus to the right window' })
+map('n', '<leader>wj', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
+map('n', '<leader>wk', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
+
+-- Resize splits with Ctrl+hjkl (spam it)
+map('n', '<C-h>', '<cmd>vertical resize -5<CR>', { noremap = true, silent = true, desc = 'Resize split left' })
+map('n', '<C-l>', '<cmd>vertical resize +5<CR>', { noremap = true, silent = true, desc = 'Resize split right' })
+map('n', '<C-j>', '<cmd>resize -2<CR>', { noremap = true, silent = true, desc = 'Resize split down' })
+map('n', '<C-k>', '<cmd>resize +2<CR>', { noremap = true, silent = true, desc = 'Resize split up' })
+
+local cs = require 'custom.config.colorscheme-picker'
+
+vim.keymap.set('n', '<leader>cs', cs.pick, { desc = 'Pick colorscheme' })
+vim.keymap.set('n', '<leader>cn', cs.next, { desc = 'Next colorscheme' })
+vim.keymap.set('n', '<leader>cp', cs.prev, { desc = 'Prev colorscheme' })
+vim.keymap.set('n', '<leader>cr', cs.refresh, { desc = 'Refresh list' })
+
+-- single-char deletes
+vim.keymap.set('n', 'x', '"_x', { noremap = true })
+vim.keymap.set('n', 'X', '"_X', { noremap = true })
+
+-- "substitute" (delete + insert)
+--vim.keymap.set('n', 's', '"_s', { noremap = true })
+--vim.keymap.set('n', 'S', '"_S', { noremap = true })
+--vim.keymap.set('x', 's', '"_s', { noremap = true })
+-- blink auto complete with tab
+vim.keymap.set('i', '<Tab>', function()
+  local ok, blink = pcall(require, 'blink.cmp')
+  if ok and blink.is_visible() and (vim.fn.mode() == 'i' or vim.fn.mode() == 'ic') then
+    blink.select_next()
+    return
+  end
+
+  local ok_snip, luasnip = pcall(require, 'luasnip')
+  if ok_snip and luasnip.expand_or_jumpable() then
+    luasnip.expand_or_jump()
+    return
+  end
+
+  local tab = vim.api.nvim_replace_termcodes('<Tab>', true, false, true)
+  vim.api.nvim_feedkeys(tab, 'n', false)
+end, { noremap = true, silent = true, desc = 'Tab: completion next / snippet / tab' })
+
+vim.keymap.set('i', '<S-Tab>', function()
+  local ok, blink = pcall(require, 'blink.cmp')
+  if ok and blink.is_visible() and (vim.fn.mode() == 'i' or vim.fn.mode() == 'ic') then
+    blink.select_prev()
+    return
+  end
+
+  local ok_snip, luasnip = pcall(require, 'luasnip')
+  if ok_snip and luasnip.jumpable(-1) then
+    luasnip.jump(-1)
+    return
+  end
+
+  local stab = vim.api.nvim_replace_termcodes('<S-Tab>', true, false, true)
+  vim.api.nvim_feedkeys(stab, 'n', false)
+end, { noremap = true, silent = true, desc = 'S-Tab: completion prev / snippet / fallback' })
