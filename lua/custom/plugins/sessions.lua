@@ -119,26 +119,6 @@ return {
           end, 50)
         end,
       })
-
-      -- On fresh start (no args), show the session picker immediately
-      vim.api.nvim_create_autocmd('VimEnter', {
-        nested = true,
-        callback = function()
-          if vim.fn.argc() ~= 0 then
-            return
-          end
-
-          if vim.g.started_with_stdin then
-            return
-          end
-
-          vim.schedule(function()
-            pcall(function()
-              require('telescope').extensions.persisted.persisted()
-            end)
-          end)
-        end,
-      })
     end,
   },
 }
