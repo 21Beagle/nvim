@@ -9,32 +9,8 @@ return {
       opts.dashboard.enabled = true
       opts.dashboard.width = 60
       opts.dashboard.row = nil
-      opts.dashboard.col = nil
-      opts.dashboard.pane_gap = 4
-      opts.dashboard.autokeys = '1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
-      local function is_windows()
-        return vim.fn.has 'win32' == 1 or vim.fn.has 'win64' == 1
-      end
-
-      local function exe(name)
-        return vim.fn.executable(name) == 1
-      end
-
-      local function pokemon_cmd()
-        if is_windows() then
-          if exe 'pokemon-colorscripts' == 1 then
-            return 'pokemon-colorscripts -r -b --no-title'
-          end
-
-          -- Windows fallback: don't crash dashboard if it's missing
-          return 'cmd /c echo pokemon-colorscripts not found (install it or put it on PATH)'
-        end
-
-        -- Unix / WSL / macOS
-        -- Avoid requiring sleep; snacks terminal section can render without it.
-        return "sh -lc 'pokemon-colorscripts -r --no-title'"
-      end
+      opts.dashboard.col = math.max(0, math.floor((vim.o.columns - opts.dashboard.width) / 2))
 
       opts.dashboard.preset = opts.dashboard.preset or {}
       opts.dashboard.preset.pick = nil
@@ -44,6 +20,7 @@ return {
         { icon = ' ', key = 'n', desc = 'New File', action = ':ene | startinsert' },
         { icon = ' ', key = 'g', desc = 'Find Text', action = ":lua Snacks.dashboard.pick('live_grep')" },
         { icon = ' ', key = 'r', desc = 'Recent Files', action = ":lua Snacks.dashboard.pick('oldfiles')" },
+        { icon = ' ', key = 'p', desc = 'Projects', action = ':lua Snacks.picker.projects()' },
         { icon = ' ', key = 'c', desc = 'Config', action = ":lua Snacks.dashboard.pick('files', { cwd = vim.fn.stdpath('config') })" },
         { icon = ' ', key = 's', desc = 'Restore Session', section = 'session' },
         { icon = '󰒲 ', key = 'L', desc = 'Lazy', action = ':Lazy', enabled = package.loaded.lazy ~= nil },
@@ -81,15 +58,12 @@ return {
           return { { fname, hl = 'file' } }
         end
 
-      -- Header becomes the pokemon terminal output
       opts.dashboard.sections = {
         {
-          section = 'terminal',
-          cmd = pokemon_cmd(),
-          random = 900,
-          pane = 1,
-          indent = 0,
-          height = 18,
+          section = 'projects',
+          title = 'Projects',
+          indent = 2,
+          padding = 1,
         },
         { section = 'keys', gap = 1, padding = 1 },
         { section = 'startup' },

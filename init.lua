@@ -459,9 +459,21 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
 
+      local function clear_typeahead()
+        while vim.fn.getchar(1) ~= 0 do
+          -- drain
+        end
+      end
+
       vim.keymap.set('n', '<leader><leader>', function()
-        require('telescope').extensions.frecency.frecency { workspace = 'CWD' }
-      end, { desc = '[ ] Files in CWD by recency' })
+        vim.schedule(function()
+          clear_typeahead()
+          require('telescope').extensions.frecency.frecency {
+            workspace = 'CWD',
+            initial_mode = 'normal',
+          }
+        end)
+      end, { desc = '[ ] Files in CWD by recency', silent = true })
 
       vim.keymap.set('n', '<leader>sb', builtin.buffers, { desc = '[S]earch [B]uffers' })
 
@@ -1163,3 +1175,101 @@ vim.keymap.set('i', '<S-Tab>', function()
   local stab = vim.api.nvim_replace_termcodes('<S-Tab>', true, false, true)
   vim.api.nvim_feedkeys(stab, 'n', false)
 end, { noremap = true, silent = true, desc = 'S-Tab: completion prev / snippet / fallback' })
+
+vim.api.nvim_create_autocmd({ 'BufNewFile', 'BufRead', 'BufEnter' }, {
+  pattern = {
+    '*__virtual.html',
+    '*__virtual.cs',
+    '*__virtual.*',
+  },
+  callback = function(event)
+    vim.bo[event.buf].swapfile = false
+    vim.bo[event.buf].undofile = false
+    vim.bo[event.buf].backup = false
+    vim.bo[event.buf].writebackup = false
+
+    -- optional: keep them from lingering
+    vim.bo[event.buf].bufhidden = 'wipe'
+  end,
+})
+
+-- Bottom terminal toggle (single instance)
+do
+  local term = {
+    bufnr = nil,
+    height = 12,
+  }
+
+  local function is_valid_buf(bufnr)
+    return bufnr ~= nil and vim.api.nvim_buf_is_valid(bufnr)
+  end
+
+  local function buf_winid(bufnr)
+    local winid = vim.fn.bufwinid(bufnr)
+    if winid == nil or winid == -1 then
+      return nil
+    end
+    return winid
+  end
+
+  local function enter_terminal_mode()
+    pcall(vim.cmd, 'startinsert')
+  end
+
+  local function open_terminal_window()
+    vim.cmd('botright ' .. term.height .. 'split')
+    vim.wo.winfixheight = true
+
+    if is_valid_buf(term.bufnr) then
+      vim.api.nvim_set_current_buf(term.bufnr)
+      enter_terminal_mode()
+      return
+    end
+
+    vim.cmd 'terminal'
+    term.bufnr = vim.api.nvim_get_current_buf()
+
+    -- keep terminal buffer around when window is closed
+    vim.bo[term.bufnr].buflisted = false
+    vim.bo[term.bufnr].bufhidden = 'hide'
+    vim.bo[term.bufnr].swapfile = false
+
+    enter_terminal_mode()
+  end
+
+  local function toggle_bottom_terminal()
+    if not is_valid_buf(term.bufnr) then
+      term.bufnr = nil
+      open_terminal_window()
+      return
+    end
+
+    local winid = buf_winid(term.bufnr)
+    if winid == nil then
+      -- buffer exists but window is closed -> reopen
+      open_terminal_window()
+      return
+    end
+
+    if vim.api.nvim_get_current_win() == winid then
+      -- focused -> hide
+      pcall(vim.cmd, 'stopinsert')
+      vim.api.nvim_win_close(winid, true)
+      return
+    end
+
+    -- open + not focused -> focus
+    vim.api.nvim_set_current_win(winid)
+    enter_terminal_mode()
+  end
+
+  -- keybinding UNCHANGED
+  map({ 'n', 't' }, '<C-t>', function()
+    toggle_bottom_terminal()
+  end, { noremap = true, silent = true, desc = 'Toggle bottom terminal' })
+
+  -- marks stay where YOU put them
+  map('n', "<leader>'", function()
+    require('telescope.builtin').marks()
+  end, { noremap = true, silent = true, desc = 'Marks' })
+end
