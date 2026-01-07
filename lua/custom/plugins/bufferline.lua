@@ -6,8 +6,8 @@ return {
   },
   event = 'VimEnter',
   keys = {
-    { '<S-h>', '<cmd>BufferLineCyclePrev<CR>', desc = 'Previous buffer' },
-    { '<S-l>', '<cmd>BufferLineCycleNext<CR>', desc = 'Next buffer' },
+    { '[b', '<cmd>BufferLineCyclePrev<CR>', desc = 'Previous buffer' },
+    { ']b', '<cmd>BufferLineCycleNext<CR>', desc = 'Next buffer' },
     { '<leader>bd', '<cmd>bdelete<CR>', desc = 'Delete buffer' },
   },
   opts = {

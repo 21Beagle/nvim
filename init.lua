@@ -165,6 +165,7 @@ vim.o.scrolloff = 10
 -- if performing an operation that would fail due to unsaved changes in the buffer (like `:q`),
 -- instead raise a dialog asking if you wish to save the current file(s)
 -- See `:help 'confirm'`
+vim.o.hidden = true
 vim.o.confirm = true
 
 -- Sessions must restore cwd (needed for neo-tree + persisted.nvim)
@@ -198,12 +199,12 @@ vim.keymap.set('n', '<down>', '<cmd>echo "Use j to move!!"<CR>')
 
 -- Keybinds to make split navigation easier.
 --  Use CTRL+<hjkl> to switch between windows
---
---  See `:help wincmd` for a list of all window commands
---vim.keymap.set('n', '<S-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
---vim.keymap.set('n', '<S-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
---vim.keymap.set('n', '<S-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
---vim.keymap.set('n', '<S-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
+-- --
+-- --  See `:help wincmd` for a list of all window commands
+vim.keymap.set('n', '<S-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
+vim.keymap.set('n', '<S-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
+vim.keymap.set('n', '<S-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
+vim.keymap.set('n', '<S-k>', '<C-w><C-k>', { desc = 'Move focus to the upper windo' })
 
 -- NOTE: Some terminals have colliding keymaps or are not able to send distinct keycodes
 -- vim.keymap.set("n", "<C-S-h>", "<C-w>H", { desc = "Move window to the left" })
@@ -1096,10 +1097,6 @@ map('i', '<C-z>', '<Esc>u', opts)
 -- Ctrl+S to save (normal / insert / visual)
 map('n', '<C-s>', '<cmd>w<CR>', opts)
 map('i', '<C-s>', '<Esc><cmd>w<CR>', opts)
-
--- Buffers (bufferline should own these)
--- <S-h> = previous buffer
--- <S-l> = next buffer
 
 -- VSCode-style navigation (jump list)
 map('n', '<A-h>', '<C-o>', { desc = 'Jump back' })
