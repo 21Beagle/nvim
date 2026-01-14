@@ -215,7 +215,7 @@ return {
       },
       keymaps = {
         view = {
-          quit = 'q',
+          quit = 'Q',
           toggle_explorer = '<leader>b',
           next_hunk = ']c',
           prev_hunk = '[c',

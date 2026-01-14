@@ -7,8 +7,6 @@ return {
     'MunifTanjim/nui.nvim',
   },
   init = function()
-    -- If a neo-tree buffer is left around (session restore / window close / etc),
-    -- it can collide with a later neo-tree open. Wipe it when hidden.
     vim.api.nvim_create_autocmd('FileType', {
       pattern = 'neo-tree',
       callback = function()
@@ -43,7 +41,6 @@ return {
           return
         end
 
-        -- Not open: toggle is the one command that actually opens AND focuses reliably
         vim.cmd 'Neotree toggle'
       end,
       desc = 'Explorer (focus / close)',
@@ -58,8 +55,21 @@ return {
       },
       use_libuv_file_watcher = true,
     },
+
     window = {
+      position = 'left',
       width = 30,
+
+      -- Prevent Neo-tree “open file” from replacing dap-ui windows if they happen to be focused
+      open_files_do_not_replace_types = {
+        'neo-tree',
+        'dapui_scopes',
+        'dapui_breakpoints',
+        'dapui_stacks',
+        'dapui_watches',
+        'dapui_console',
+        'dapui_repl',
+      },
     },
   },
 }
