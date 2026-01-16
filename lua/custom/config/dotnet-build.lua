@@ -1,80 +1,162 @@
 ----------------------------------------------------------------------
--- dotnet debug -> pick runnable project from .sln -> nvim-dap (netcoredbg)
---
--- Keymap suggestion:
---   vim.keymap.set("n", "<leader>md", function() require("dotnet_debug").debug_sln() end)
+-- dotnet build -> diagnostics (+ live output buffer)
 ----------------------------------------------------------------------
 
 local M = {}
 
-local function is_windows()
+local dotnet_ns = vim.api.nvim_create_namespace 'dotnet_build'
+
+-- Build output window (single instance)
+local build_out = {
+  bufnr = nil,
+  winid = nil,
+  height = 12,
+}
+
+local function dotnet_is_windows()
   return package.config:sub(1, 1) == '\\'
 end
 
-local function normalize_path(path)
-  if path == nil then
+local function dotnet_normalize_path(path)
+  if dotnet_is_windows() then
+    path = path:gsub('\\', '/')
+  end
+  return path
+end
+
+local function dotnet_strip_ansi(line)
+  line = line:gsub('\27%[[%d;]*m', '')
+  line = line:gsub('\r', '')
+  return line
+end
+
+local function build_out_is_valid_buf(bufnr)
+  return bufnr ~= nil and vim.api.nvim_buf_is_valid(bufnr)
+end
+
+local function build_out_buf_winid(bufnr)
+  local winid = vim.fn.bufwinid(bufnr)
+  if winid == nil or winid == -1 then
     return nil
   end
-  if is_windows() then
-    return (path or ''):gsub('/', '\\')
-  end
-  return (path or ''):gsub('\\', '/')
+  return winid
 end
 
-local function path_sep()
-  if is_windows() then
-    return '\\'
+local function build_out_close_window()
+  if not build_out_is_valid_buf(build_out.bufnr) then
+    return
   end
-  return '/'
+
+  local winid = build_out_buf_winid(build_out.bufnr)
+  if winid ~= nil and vim.api.nvim_win_is_valid(winid) then
+    pcall(vim.api.nvim_win_close, winid, true)
+  end
 end
 
-local function path_join(a, b)
-  if a == nil or a == '' then
-    return b
-  end
-  if b == nil or b == '' then
-    return a
+local function build_out_add_highlights(start_lnum, end_lnum)
+  if not build_out_is_valid_buf(build_out.bufnr) then
+    return
   end
 
-  a = normalize_path(a)
-  b = normalize_path(b)
-
-  local sep = path_sep()
-  if a:sub(-1) == sep then
-    return a .. b
+  local ok, buf_lines = pcall(vim.api.nvim_buf_get_lines, build_out.bufnr, start_lnum, end_lnum, false)
+  if not ok or buf_lines == nil then
+    return
   end
-  return a .. sep .. b
+
+  local function add_pattern_hl(line_idx, text, pattern, hl_group)
+    local from = 1
+    while true do
+      local s, e = text:find(pattern, from)
+      if s == nil then
+        return
+      end
+      vim.api.nvim_buf_add_highlight(build_out.bufnr, dotnet_ns, hl_group, line_idx, s - 1, e)
+      from = e + 1
+    end
+  end
+
+  for i, text in ipairs(buf_lines) do
+    local lnum = start_lnum + (i - 1)
+
+    add_pattern_hl(lnum, text, ':%s*error%s+', 'DiagnosticError')
+    add_pattern_hl(lnum, text, ':%s*warning%s+', 'DiagnosticWarn')
+    add_pattern_hl(lnum, text, '[Ee]rror', 'DiagnosticError')
+    add_pattern_hl(lnum, text, '[Ww]arning', 'DiagnosticWarn')
+    add_pattern_hl(lnum, text, '[Bb]uild%s+FAILED', 'DiagnosticError')
+    add_pattern_hl(lnum, text, '[Bb]uild%s+succeeded', 'DiagnosticInfo')
+    add_pattern_hl(lnum, text, '^exit code:%s*%d+', 'DiagnosticInfo')
+  end
 end
 
-local function read_file(path)
-  local fd = vim.loop.fs_open(path, 'r', 438)
-  if fd == nil then
-    return nil
+local function dotnet_parse_build_output(lines, cwd)
+  cwd = cwd or vim.loop.cwd()
+  local diags_by_buf = {}
+  local has_error = false
+
+  for _, raw_line in ipairs(lines) do
+    local line = dotnet_strip_ansi(raw_line)
+
+    -- Example: Program.cs(10,13): error CS1002: ; expected [MyProject]
+    local file, lnum, col, level, code, msg = line:match '^(.+)%((%d+),(%d+)%)%s*:%s*(%a+)%s+([%w%d]+)%s*:%s*(.+)$'
+
+    if file ~= nil then
+      file = dotnet_normalize_path(file)
+
+      local fullpath = vim.fn.fnamemodify(file, ':p')
+      if not fullpath:match '^%a:[/\\]' and not fullpath:match '^/' then
+        fullpath = dotnet_normalize_path(cwd .. '/' .. file)
+      end
+
+      local bufnr = vim.fn.bufadd(fullpath)
+
+      local severity
+      local lvl = level:lower()
+      if lvl == 'error' then
+        severity = vim.diagnostic.severity.ERROR
+        has_error = true
+      elseif lvl == 'warning' then
+        severity = vim.diagnostic.severity.WARN
+      else
+        severity = vim.diagnostic.severity.INFO
+      end
+
+      local diag = {
+        lnum = tonumber(lnum) - 1,
+        col = tonumber(col) - 1,
+        severity = severity,
+        source = 'dotnet-build',
+        code = code,
+        message = msg,
+      }
+
+      if diags_by_buf[bufnr] == nil then
+        diags_by_buf[bufnr] = {}
+      end
+      table.insert(diags_by_buf[bufnr], diag)
+    end
   end
-  local stat = vim.loop.fs_fstat(fd)
-  if stat == nil then
-    vim.loop.fs_close(fd)
-    return nil
+
+  vim.diagnostic.reset(dotnet_ns)
+
+  for bufnr, diags in pairs(diags_by_buf) do
+    vim.diagnostic.set(dotnet_ns, bufnr, diags, { underline = true, virtual_text = false })
   end
-  local data = vim.loop.fs_read(fd, stat.size, 0)
-  vim.loop.fs_close(fd)
-  return data
+
+  return has_error
 end
 
-local function trim(s)
-  return (s or ''):gsub('^%s+', ''):gsub('%s+$', '')
-end
-
-local function find_sln_path()
+local function find_sln_dir()
   local start = vim.fn.expand '%:p:h'
   if start == nil or start == '' then
     start = vim.loop.cwd()
   end
 
+  -- 1) Upward search from the current file dir (or cwd fallback)
   local matches = vim.fs.find(function(name)
     return name:match '%.sln$'
   end, { path = start, upward = true, limit = 1 })
 
+  -- 2) If not found upward, search downward from cwd (recursive)
   if matches == nil or matches[1] == nil then
     local cwd = vim.loop.cwd()
     matches = vim.fs.find(function(name)
@@ -82,266 +164,173 @@ local function find_sln_path()
     end, { path = cwd, upward = false, limit = math.huge })
 
     if matches ~= nil and #matches > 1 then
+      -- choose the "closest" match (usually the most relevant)
       table.sort(matches, function(a, b)
         return #a < #b
       end)
     end
   end
 
-  if matches == nil or matches[1] == nil or matches[1] == '' then
+  local first = matches[1]
+  if first == nil or first == '' then
     return nil
   end
 
-  return normalize_path(matches[1])
-end
-
-local function parse_sln_projects(sln_path)
-  local text = read_file(sln_path)
-  if text == nil then
-    return {}
+  local dir = vim.fs.dirname(first)
+  if dir == nil or dir == '' then
+    return nil
   end
 
-  local sln_dir = normalize_path(vim.fs.dirname(sln_path))
-  local projects = {}
+  return dir
+end
 
-  for line in text:gmatch '[^\r\n]+' do
-    local name, relpath = line:match '^Project%("%b{}"%)%s*=%s*"(.-)"%s*,%s*"(.-)"%s*,%s*"%b{}"%s*$'
-    if name ~= nil and relpath ~= nil then
-      local rp = normalize_path(relpath)
-      if rp:match '%.csproj$' or rp:match '%.fsproj$' or rp:match '%.vbproj$' then
-        local full = rp
-        if not full:match '^%a:[/\\]' and not full:match '^[\\/]' then
-          full = path_join(sln_dir, rp)
-        end
-        projects[#projects + 1] = {
-          name = name,
-          csproj = full,
-          project_dir = normalize_path(vim.fs.dirname(full)),
-        }
-      end
+local function build_out_open_window()
+  if build_out_is_valid_buf(build_out.bufnr) then
+    local winid = build_out_buf_winid(build_out.bufnr)
+    if winid ~= nil then
+      build_out.winid = winid
+      return
     end
   end
 
-  return projects
+  vim.cmd('botright ' .. build_out.height .. 'split')
+  vim.wo.winfixheight = true
+
+  if not build_out_is_valid_buf(build_out.bufnr) then
+    build_out.bufnr = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_buf_set_name(build_out.bufnr, 'dotnet://build')
+    vim.bo[build_out.bufnr].buftype = 'nofile'
+    vim.bo[build_out.bufnr].bufhidden = 'hide'
+    vim.bo[build_out.bufnr].swapfile = false
+    vim.bo[build_out.bufnr].modifiable = true
+    vim.bo[build_out.bufnr].filetype = 'dotnet-build'
+
+    vim.keymap.set('n', 'q', function()
+      build_out_close_window()
+    end, { buffer = build_out.bufnr, nowait = true, silent = true })
+  end
+
+  vim.api.nvim_set_current_buf(build_out.bufnr)
+  build_out.winid = vim.api.nvim_get_current_win()
+
+  vim.wo.number = false
+  vim.wo.relativenumber = false
+  vim.wo.signcolumn = 'no'
+  vim.wo.wrap = false
+  vim.wo.cursorline = true
 end
 
-local function xml_first(text, pattern)
-  if text == nil then
-    return nil
+local function build_out_clear()
+  if not build_out_is_valid_buf(build_out.bufnr) then
+    return
   end
-  local v = text:match(pattern)
-  if v == nil then
-    return nil
-  end
-  return trim(v)
+  vim.api.nvim_buf_set_lines(build_out.bufnr, 0, -1, false, {})
+  vim.api.nvim_buf_clear_namespace(build_out.bufnr, dotnet_ns, 0, -1)
 end
 
-local function is_coreclr_tfm(tfm)
-  if tfm == nil then
-    return false
+local function build_out_append(lines_to_add)
+  if lines_to_add == nil or #lines_to_add == 0 then
+    return
   end
-  local t = trim(tfm):lower()
-  if t:match '^netcoreapp%d+%.%d+' ~= nil then
-    return true
+
+  build_out_open_window()
+
+  if not build_out_is_valid_buf(build_out.bufnr) then
+    return
   end
-  local major = t:match '^net(%d+)%.[%d]+'
-  if major ~= nil then
-    local n = tonumber(major)
-    if n ~= nil and n >= 5 then
-      return true
-    end
+
+  local start_lnum = vim.api.nvim_buf_line_count(build_out.bufnr)
+  vim.api.nvim_buf_set_lines(build_out.bufnr, -1, -1, false, lines_to_add)
+  local end_lnum = vim.api.nvim_buf_line_count(build_out.bufnr)
+
+  build_out_add_highlights(start_lnum, end_lnum)
+
+  local winid = build_out_buf_winid(build_out.bufnr)
+  if winid ~= nil and vim.api.nvim_win_is_valid(winid) then
+    local last = vim.api.nvim_buf_line_count(build_out.bufnr)
+    pcall(vim.api.nvim_win_set_cursor, winid, { last, 0 })
   end
-  return false
 end
 
-local function choose_coreclr_tfm(tfms)
-  if tfms == nil or #tfms == 0 then
-    return nil
+function M.build()
+  local sln_dir = find_sln_dir()
+  if sln_dir ~= nil then
+    vim.cmd('cd ' .. vim.fn.fnameescape(sln_dir))
   end
 
-  local candidates = {}
-  for _, tfm in ipairs(tfms) do
-    if is_coreclr_tfm(tfm) then
-      candidates[#candidates + 1] = tfm
-    end
-  end
+  local cwd = vim.loop.cwd()
+  local lines = {}
 
-  if #candidates == 0 then
-    return nil
-  end
-
-  if is_windows() then
-    for _, tfm in ipairs(candidates) do
-      if tfm:lower():find('windows', 1, true) ~= nil then
-        return tfm
-      end
-    end
-  end
-
-  return candidates[1]
-end
-
-local function parse_csproj_info(csproj_path)
-  local text = read_file(csproj_path)
-  if text == nil then
-    return nil
-  end
-
-  local assembly_name = xml_first(text, '<AssemblyName>%s*(.-)%s*</AssemblyName>')
-  local tfm_single = xml_first(text, '<TargetFramework>%s*(.-)%s*</TargetFramework>')
-  local tfm_multi = xml_first(text, '<TargetFrameworks>%s*(.-)%s*</TargetFrameworks>')
-
-  local tfms = {}
-  if tfm_multi ~= nil and tfm_multi ~= '' then
-    for t in tfm_multi:gmatch '([^;]+)' do
-      tfms[#tfms + 1] = trim(t)
-    end
-  elseif tfm_single ~= nil and tfm_single ~= '' then
-    tfms[#tfms + 1] = trim(tfm_single)
-  end
-
-  if assembly_name == nil or assembly_name == '' then
-    assembly_name = vim.fn.fnamemodify(csproj_path, ':t:r')
-  end
-
-  return {
-    assembly_name = assembly_name,
-    tfms = tfms,
-  }
-end
-
-local function compute_dll_path(project_dir, configuration, tfm, assembly_name)
-  return path_join(path_join(path_join(project_dir, 'bin'), configuration), path_join(tfm, assembly_name .. '.dll'))
-end
-
-local defaults = {
-  netcoredbg_path = nil,
-  configuration = 'Debug',
-  prompt_for_args = true,
-  dap_log = true,
-}
-
-M._opts = vim.deepcopy(defaults)
-
-local function ensure_dap_adapter()
-  local ok, dap = pcall(require, 'dap')
-  if not ok then
-    vim.notify('nvim-dap not found', vim.log.levels.ERROR)
-    return false
-  end
-
-  if M._opts.dap_log then
-    dap.set_log_level 'TRACE'
-  end
-
-  dap.adapters.coreclr = {
-    type = 'executable',
-    command = M._opts.netcoredbg_path or 'netcoredbg',
-    args = { '--interpreter=vscode' },
-    detached = not is_windows(),
+  build_out_open_window()
+  build_out_clear()
+  build_out_append {
+    'dotnet build',
+    'cwd: ' .. cwd,
+    string.rep('-', 60),
+    '',
   }
 
-  return true
-end
+  vim.notify('dotnet build (cwd=' .. cwd .. ')', vim.log.levels.INFO)
 
-local function start_debug(item, args_list)
-  local ok, dap = pcall(require, 'dap')
-  if not ok then
-    return
-  end
-
-  -- Critical on Windows: prevent shellslash rewriting paths passed to tools.
-  if is_windows() then
-    vim.cmd 'set noshellslash'
-  end
-
-  local dll = compute_dll_path(item.project_dir, M._opts.configuration, item.tfm, item.assembly_name)
-
-  dap.run {
-    type = 'coreclr',
-    name = 'dotnet: ' .. item.name,
-    request = 'launch',
-    program = dll,
-    cwd = item.project_dir,
-    args = args_list or {},
-    justMyCode = false,
-    stopAtEntry = false,
-
-    -- Force this. Your log shows integratedTerminal, which tends to drag in extra thread/UI behaviour.
-    console = 'internalConsole',
-  }
-end
-
-function M.setup(opts)
-  M._opts = vim.tbl_deep_extend('force', vim.deepcopy(defaults), opts or {})
-  ensure_dap_adapter()
-end
-
-function M.debug_sln()
-  if not ensure_dap_adapter() then
-    return
-  end
-
-  local sln_path = find_sln_path()
-  if sln_path == nil then
-    vim.notify('No .sln found (searched upward from current file and then cwd).', vim.log.levels.ERROR)
-    return
-  end
-
-  local projects = parse_sln_projects(sln_path)
-  if projects == nil or #projects == 0 then
-    vim.notify('No runnable projects found in solution: ' .. sln_path, vim.log.levels.ERROR)
-    return
-  end
-
-  local items = {}
-  for _, p in ipairs(projects) do
-    local info = parse_csproj_info(p.csproj)
-    if info ~= nil then
-      local tfm = choose_coreclr_tfm(info.tfms)
-      if tfm ~= nil then
-        items[#items + 1] = {
-          name = p.name,
-          csproj = p.csproj,
-          project_dir = p.project_dir,
-          assembly_name = info.assembly_name,
-          tfm = tfm,
-        }
-      end
-    end
-  end
-
-  if #items == 0 then
-    vim.notify('No CoreCLR-capable TFMs found in projects from: ' .. sln_path, vim.log.levels.ERROR)
-    return
-  end
-
-  vim.ui.select(items, {
-    prompt = 'Pick project to debug',
-    format_item = function(it)
-      return it.name .. '  [' .. it.tfm .. ']'
-    end,
-  }, function(choice)
-    if choice == nil then
+  local function on_data(_, data)
+    if data == nil then
       return
     end
 
-    local args_list = {}
-    if M._opts.prompt_for_args then
-      vim.ui.input({ prompt = 'Args (space-separated, blank for none): ' }, function(input)
-        local s = trim(input or '')
-        if s ~= '' then
-          for a in s:gmatch '%S+' do
-            args_list[#args_list + 1] = a
-          end
-        end
-        start_debug(choice, args_list)
+    local to_show = {}
+    for _, raw in ipairs(data) do
+      local line = dotnet_strip_ansi(raw)
+      if line ~= nil and line ~= '' then
+        table.insert(lines, line)
+        table.insert(to_show, line)
+      end
+    end
+
+    if #to_show > 0 then
+      vim.schedule(function()
+        build_out_append(to_show)
       end)
-      return
     end
+  end
 
-    start_debug(choice, args_list)
-  end)
+  local job_id = vim.fn.jobstart({ 'dotnet', 'build' }, {
+    cwd = cwd,
+    stdout_buffered = false,
+    stderr_buffered = false,
+    on_stdout = on_data,
+    on_stderr = on_data,
+    on_exit = function(_, code)
+      vim.schedule(function()
+        build_out_append {
+          '',
+          string.rep('-', 60),
+          'exit code: ' .. tostring(code),
+        }
+      end)
+
+      local has_error = dotnet_parse_build_output(lines, cwd)
+
+      if code ~= 0 or has_error then
+        vim.notify('dotnet build failed with exit code ' .. code, vim.log.levels.ERROR)
+        return
+      end
+
+      vim.notify('dotnet build succeeded', vim.log.levels.INFO)
+      vim.schedule(function()
+        build_out_close_window()
+      end)
+    end,
+  })
+
+  if job_id <= 0 then
+    vim.notify('Failed to start `dotnet build` job', vim.log.levels.ERROR)
+  end
+end
+
+function M.setup()
+  vim.keymap.set('n', '<leader>mb', function()
+    M.build()
+  end, { desc = 'dotnet build (populate diagnostics)' })
 end
 
 return M
