@@ -467,13 +467,10 @@ require('lazy').setup({
       end
 
       vim.keymap.set('n', '<leader><leader>', function()
-        vim.schedule(function()
-          clear_typeahead()
-          require('telescope').extensions.frecency.frecency {
-            workspace = 'CWD',
-            initial_mode = 'normal',
-          }
-        end)
+        require('telescope').extensions.frecency.frecency {
+          workspace = 'CWD',
+          initial_mode = 'insert',
+        }
       end, { desc = '[ ] Files in CWD by recency', silent = true })
 
       vim.keymap.set('n', '<leader>sb', builtin.buffers, { desc = '[S]earch [B]uffers' })
