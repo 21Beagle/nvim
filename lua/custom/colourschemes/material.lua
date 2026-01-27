@@ -45,7 +45,5 @@ return {
       custom_colors = nil,
       custom_highlights = {},
     }
-
-    vim.cmd.colorscheme 'material'
   end,
 }
