@@ -147,6 +147,188 @@ return -- lazy.nvim
       return cached_sdk_path
     end
 
+    -- Publish MSBuild errors/warnings into Neovim diagnostics so Telescope builtin.diagnostics sees them.
+    local dotnet_build_ns = vim.api.nvim_create_namespace 'dotnet_build'
+
+    local function normalize_path(p)
+      if not p or p == '' then
+        return nil
+      end
+      p = p:gsub('"', '')
+      return vim.fn.fnamemodify(p, ':p')
+    end
+
+    local function parse_msbuild_line(line)
+      -- Typical MSBuild lines:
+      -- C:\path\File.cs(12,34): error CS1002: ; expected [Proj.csproj]
+      -- /path/File.cs(12,34): warning CS0168: ... [Proj.csproj]
+      local file, lnum, col, sev, msg = line:match '^(.+)%((%d+),(%d+)%)%s*:%s*(error)%s+(.*)$'
+      if not file then
+        file, lnum, col, sev, msg = line:match '^(.+)%((%d+),(%d+)%)%s*:%s*(warning)%s+(.*)$'
+      end
+      if not file then
+        return nil
+      end
+
+      local severity = (sev == 'error') and vim.diagnostic.severity.ERROR or vim.diagnostic.severity.WARN
+      return {
+        filename = normalize_path(file),
+        lnum = tonumber(lnum),
+        col = tonumber(col),
+        severity = severity,
+        message = msg,
+      }
+    end
+
+    local function clear_build_diagnostics()
+      -- Clear diagnostics for all loaded buffers in this namespace
+      for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+        vim.diagnostic.reset(dotnet_build_ns, bufnr)
+      end
+    end
+
+    local function publish_build_diagnostics(lines)
+      clear_build_diagnostics()
+
+      local per_buf = {}
+
+      for _, line in ipairs(lines) do
+        local hit = parse_msbuild_line(line)
+        if hit and hit.filename then
+          local bufnr = vim.fn.bufnr(hit.filename, true)
+          pcall(vim.fn.bufload, bufnr)
+
+          per_buf[bufnr] = per_buf[bufnr] or {}
+          table.insert(per_buf[bufnr], {
+            lnum = math.max((hit.lnum or 1) - 1, 0),
+            col = math.max((hit.col or 1) - 1, 0),
+            severity = hit.severity,
+            message = hit.message,
+            source = 'dotnet build',
+          })
+        end
+      end
+
+      for bufnr, diags in pairs(per_buf) do
+        vim.diagnostic.set(dotnet_build_ns, bufnr, diags, { underline = true, virtual_text = false, signs = true })
+      end
+    end
+
+    -- Run dotnet build, SHOW output in a bottom split, and populate Neovim diagnostics.
+    local function dotnet_build_to_diagnostics(path, extra_args)
+      extra_args = extra_args or ''
+
+      local cmd = { 'dotnet', 'build' }
+
+      if path and path ~= '' then
+        table.insert(cmd, path)
+      end
+
+      table.insert(cmd, '-nologo')
+      table.insert(cmd, '-v:minimal')
+
+      if extra_args ~= '' then
+        for a in string.gmatch(extra_args, '%S+') do
+          table.insert(cmd, a)
+        end
+      end
+
+      -- Create/reuse a "build log" scratch buffer so you can watch output
+      local bufname = 'dotnet://build'
+      local buf = vim.fn.bufnr(bufname, false)
+      if buf == -1 then
+        buf = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_name(buf, bufname)
+        vim.bo[buf].buftype = 'nofile'
+        vim.bo[buf].bufhidden = 'hide'
+        vim.bo[buf].swapfile = false
+        vim.bo[buf].filetype = 'log'
+      end
+
+      -- Show it in a bottom split (reuse window if already visible)
+      local win = vim.fn.bufwinid(buf)
+      if win == -1 then
+        vim.cmd 'botright split'
+        vim.cmd 'resize 12'
+        vim.api.nvim_win_set_buf(0, buf)
+      else
+        vim.api.nvim_set_current_win(win)
+      end
+
+      vim.bo[buf].modifiable = true
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '[dotnet build] starting…', '' })
+
+      local collected = {}
+
+      local function append_lines(data)
+        if not data then
+          return
+        end
+
+        local to_add = {}
+        for _, l in ipairs(data) do
+          if l ~= '' then
+            table.insert(collected, l)
+            table.insert(to_add, l)
+          end
+        end
+        if #to_add == 0 then
+          return
+        end
+
+        if not vim.api.nvim_buf_is_valid(buf) then
+          return
+        end
+
+        local line_count = vim.api.nvim_buf_line_count(buf)
+        vim.api.nvim_buf_set_lines(buf, line_count, line_count, false, to_add)
+
+        -- follow output (only if you're looking at the build buffer)
+        local curwin = vim.api.nvim_get_current_win()
+        if vim.api.nvim_win_get_buf(curwin) == buf then
+          local last = vim.api.nvim_buf_line_count(buf)
+          vim.api.nvim_win_set_cursor(curwin, { last, 0 })
+        end
+      end
+
+      vim.fn.jobstart(cmd, {
+        stdout_buffered = false,
+        stderr_buffered = false,
+
+        on_stdout = function(_, data)
+          vim.schedule(function()
+            append_lines(data)
+          end)
+        end,
+
+        on_stderr = function(_, data)
+          vim.schedule(function()
+            append_lines(data)
+          end)
+        end,
+
+        on_exit = function(_, code)
+          vim.schedule(function()
+            publish_build_diagnostics(collected)
+
+            if vim.api.nvim_buf_is_valid(buf) then
+              vim.api.nvim_buf_set_lines(buf, vim.api.nvim_buf_line_count(buf), vim.api.nvim_buf_line_count(buf), false, {
+                '',
+                ('[dotnet build] exit code %d'):format(code),
+                '[dotnet build] diagnostics updated (use <leader>sd)',
+              })
+            end
+
+            if code == 0 then
+              vim.notify('dotnet build: done (diagnostics updated)', vim.log.levels.INFO)
+            else
+              vim.notify('dotnet build: failed (diagnostics updated)', vim.log.levels.WARN)
+            end
+          end)
+        end,
+      })
+    end
+
     dotnet.setup {
       lsp = {
         enabled = true, -- Enable builtin roslyn lsp
@@ -243,7 +425,10 @@ return -- lazy.nvim
         if is_windows() then
           command = command .. '\r'
         end
-        vim.cmd 'vsplit'
+
+        -- Horizontal split instead of vertical
+        vim.cmd 'botright split'
+        vim.cmd 'resize 12'
         vim.cmd('term ' .. command)
       end,
 
@@ -296,8 +481,16 @@ return -- lazy.nvim
       dotnet.debug()
     end)
 
+    -- Diagnostics (more reliable): defer slightly so Roslyn has time to publish results
+    vim.keymap.set('n', '<leader>mm', function()
+      vim.defer_fn(function()
+        dotnet.diagnostics.get_workspace_diagnostics 'warning'
+      end, 400)
+    end, { desc = 'workspace diagnostics' })
+
+    -- Build solution: show build output + populate Neovim diagnostics for Telescope builtin.diagnostics (<leader>sd)
     vim.keymap.set('n', '<leader>mb', function()
-      dotnet.diagnostics.get_workspace_diagnostics 'warning'
-    end)
+      dotnet_build_to_diagnostics(vim.fn.getcwd(), '')
+    end, { desc = 'dotnet build -> diagnostics (visible)' })
   end,
 }

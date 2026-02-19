@@ -32,6 +32,12 @@ return {
         inc_rename = true,
         lsp_doc_border = true,
       },
+      cmdline = {
+        enabled = true, -- enable Noice cmdline UI
+
+        view = 'cmdline', -- how the cmdline is shown
+        -- other options: "cmdline", "cmdline_popup", "cmdline_popup_center"
+      },
     },
     keys = {
       { '<leader>nl', '<cmd>Noice last<CR>', desc = 'Last message' },

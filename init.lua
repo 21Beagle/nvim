@@ -951,39 +951,145 @@ require('lazy').setup({
         },
       }
 
-      -- Simple and easy statusline.
-      --  You could remove this setup call if you don't like it,
-      --  and try some other statusline plugin
       local statusline = require 'mini.statusline'
-      -- set use_icons to true if you have a Nerd Font
       statusline.setup { use_icons = vim.g.have_nerd_font }
 
-      -- You can configure sections in the statusline by overriding their
-      -- default behavior. For example, here we set the section for
-      -- cursor location to LINE:COLUMN
-      ---@diagnostic disable-next-line: duplicate-set-field
+      -- keep your location override if you want
       statusline.section_location = function()
         return '%2l:%-2v'
       end
+
+      local function cmdline_preview()
+        local t = vim.fn.getcmdtype()
+        if t == '' then
+          return ''
+        end
+
+        local line = vim.fn.getcmdline()
+        if line == '' then
+          return t
+        end
+
+        -- Make it readable + not huge
+        line = line:gsub('\n', '⏎')
+        local max = 60
+        if #line > max then
+          line = '…' .. line:sub(#line - max + 1)
+        end
+
+        return ('%s%s'):format(t, line) -- e.g. :w, /foo, ?bar
+      end
+
+      -- Store last recorded macro (register + text) so we can display it
+      vim.g._last_macro_reg = vim.g._last_macro_reg or ''
+      vim.g._last_macro_txt = vim.g._last_macro_txt or ''
+
+      -- Save original fileinfo section (mini version dependent)
+      local orig_fileinfo = statusline.section_fileinfo
+
+      local function pretty_macro(reg)
+        if reg == nil or reg == '' then
+          return ''
+        end
+        local txt = vim.fn.getreg(reg)
+
+        -- Make it single-line + more readable
+        txt = txt:gsub('\n', '⏎')
+
+        -- Translate keycodes (like <Esc>) if available
+        if vim.fn.exists '*keytrans' == 1 then
+          txt = vim.fn.keytrans(txt)
+        end
+
+        -- Truncate so it doesn't eat the whole statusline
+        local max = 40
+        if #txt > max then
+          txt = txt:sub(1, max) .. '…'
+        end
+
+        return ('@%s:%s'):format(reg, txt)
+      end
+
+      -- Show recording status OR last recorded macro
+      statusline.section_fileinfo = function(args)
+        local rec = vim.fn.reg_recording()
+        local left = ''
+
+        if rec ~= '' then
+          left = ('Recording @%s '):format(rec)
+        elseif vim.g._last_macro_reg ~= '' then
+          left = (pretty_macro(vim.g._last_macro_reg) .. ' ')
+        end
+
+        local cmd = cmdline_preview()
+        if cmd ~= '' then
+          left = cmd .. '  ' .. left
+        end
+
+        return left .. orig_fileinfo(args)
+      end
+
+      -- Refresh statusline and capture macro on stop
+      vim.api.nvim_create_autocmd('RecordingEnter', {
+        callback = function()
+          vim.cmd 'redrawstatus'
+        end,
+      })
+
+      vim.api.nvim_create_autocmd('RecordingLeave', {
+        callback = function()
+          -- This returns the register used for the recording that just ended
+          local reg = vim.fn.reg_recorded()
+          if reg ~= nil and reg ~= '' then
+            vim.g._last_macro_reg = reg
+            vim.g._last_macro_txt = vim.fn.getreg(reg)
+          end
+          vim.cmd 'redrawstatus'
+        end,
+      })
 
       -- ... and there is more!
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
-  { -- Highlight, edit, and navigate code
+  { -- Treesitter (new main API)
     'nvim-treesitter/nvim-treesitter',
+    lazy = false, -- ✅ main branch: do NOT lazy-load
     build = ':TSUpdate',
-    event = { 'BufReadPost', 'BufNewFile' },
     config = function()
-      require('nvim-treesitter.configs').setup {
-        ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
-        auto_install = true,
-        highlight = {
-          enable = true,
-          additional_vim_regex_highlighting = { 'ruby' },
-        },
-        indent = { enable = true, disable = { 'ruby' } },
+      local ts = require 'nvim-treesitter'
+
+      -- optional on main; only real config is install_dir
+      ts.setup()
+
+      -- install parsers (replaces ensure_installed)
+      ts.install {
+        'bash',
+        'c',
+        'diff',
+        'html',
+        'lua',
+        'luadoc',
+        'markdown',
+        'markdown_inline',
+        'query',
+        'vim',
+        'vimdoc',
       }
+
+      -- start highlighting for real buffers
+      vim.api.nvim_create_autocmd({ 'BufReadPost', 'BufNewFile' }, {
+        callback = function(args)
+          pcall(vim.treesitter.start, args.buf)
+        end,
+      })
+
+      -- indentexpr hook (fine, but optional)
+      vim.api.nvim_create_autocmd('FileType', {
+        callback = function(args)
+          vim.bo[args.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+        end,
+      })
     end,
   },
 
