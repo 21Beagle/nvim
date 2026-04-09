@@ -181,7 +181,6 @@ end
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 -- Diagnostic keymaps
-vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -196,13 +195,21 @@ vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
 vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
 vim.keymap.set('n', '<up>', '<cmd>echo "Use k to move!!"<CR>')
 vim.keymap.set('n', '<down>', '<cmd>echo "Use j to move!!"<CR>')
+vim.keymap.set('n', '<leader>wq', function()
+  vim.cmd 'vsplit'
+end, { desc = 'Split window vertically', silent = true })
 
+vim.keymap.set('n', '<leader>we', function()
+  vim.cmd 'split'
+end, { desc = 'Split window horizontally', silent = true })
+
+vim.keymap.set( 'n', '<leader>wo', '<cmd>only<CR>', { desc = 'Close other windows' }) 
 -- Keybinds to make split navigation easier.
 --  Use CTRL+<hjkl> to switch between windows
 -- --
 -- --  See `:help wincmd` for a list of all window commands
-vim.keymap.set('n', '<S-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
-vim.keymap.set('n', '<S-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
+-- vim.keymap.set('n', '<S-h>', '<C-w><C-h>', { desc = 'Move focus to the left window' })
+-- vim.keymap.set('n', '<S-l>', '<C-w><C-l>', { desc = 'Move focus to the right window' })
 -- vim.keymap.set('n', '<S-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
 -- vim.keymap.set('n', '<S-k>', '<C-w><C-k>', { desc = 'Move focus to the upper windo' })
 
@@ -775,49 +782,111 @@ require('lazy').setup({
     end,
   },
 
-  { -- Autoformat
-    'stevearc/conform.nvim',
-    event = { 'BufWritePre' },
-    cmd = { 'ConformInfo' },
-    keys = {
-      {
-        '<leader>f',
-        function()
-          require('conform').format { async = true, lsp_format = 'fallback' }
-        end,
-        mode = '',
-        desc = '[F]ormat buffer',
-      },
-    },
-    opts = {
-      notify_on_error = false,
-      format_on_save = function(bufnr)
-        -- Disable "format_on_save lsp_fallback" for languages that don't
-        -- have a well standardized coding style. You can add additional
-        -- languages here or re-enable it for the disabled ones.
-        local disable_filetypes = { c = true, cpp = true }
-        if disable_filetypes[vim.bo[bufnr].filetype] then
-          return nil
-        else
-          return {
-            timeout_ms = 500,
-            lsp_format = 'fallback',
-          }
-        end
+{
+  'stevearc/conform.nvim',
+  cmd = { 'ConformInfo' },
+  keys = {
+    {
+      '<leader>ff',
+      function()
+        require('conform').format {
+          async = true,
+          lsp_fallback = false,
+          formatters = { 'csharpier', 'stylua' },
+        }
       end,
-      formatters_by_ft = {
-        lua = { 'stylua' },
-        -- Conform can also run multiple formatters sequentially
-        -- python = { "isort", "black" },
-        --
-        -- You can use 'stop_after_first' to run the first available formatter from the list
-        -- javascript = { "prettierd", "prettier", stop_after_first = true },
-        cs = { 'csharpier' },
-      },
+      mode = '',
+      desc = '[F]ormat file (Conform)',
+    },
+    {
+      '<leader>fd',
+      function()
+        local buf = vim.api.nvim_get_current_buf()
+        local file = vim.api.nvim_buf_get_name(buf)
+        if file == '' then
+          vim.notify('No file for current buffer', vim.log.levels.ERROR)
+          return
+        end
+
+        vim.cmd('write')
+
+        local start_dir = vim.fs.dirname(file)
+        local sln = vim.fs.find(function(name)
+          return name:match('%.sln$') ~= nil
+        end, { upward = true, path = start_dir })[1]
+
+        if not sln then
+          vim.notify('No .sln found upward from: ' .. start_dir, vim.log.levels.ERROR)
+          return
+        end
+
+        local root = vim.fs.dirname(sln)
+        local rel = vim.fn.fnamemodify(file, ':.'):gsub('\\', '/')
+
+        vim.notify('dotnet format (file): ' .. rel)
+
+        vim.system(
+          { 'dotnet', 'format', '--include', rel, '--verbosity', 'minimal' },
+          { cwd = root, text = true },
+          function(obj)
+            vim.schedule(function()
+              if obj.code ~= 0 then
+                vim.notify(obj.stderr ~= '' and obj.stderr or 'dotnet format failed', vim.log.levels.ERROR)
+                return
+              end
+              vim.notify('dotnet format file complete')
+              vim.cmd('checktime')
+            end)
+          end
+        )
+      end,
+      mode = '',
+      desc = '[F]ormat file (dotnet format)',
+    },
+    {
+      '<leader>fs',
+      function()
+        local buf = vim.api.nvim_get_current_buf()
+        local file = vim.api.nvim_buf_get_name(buf)
+        local start_dir = (file ~= '' and vim.fs.dirname(file)) or vim.fn.getcwd()
+
+        local sln = vim.fs.find(function(name)
+          return name:match('%.sln$') ~= nil
+        end, { upward = true, path = start_dir })[1]
+
+        if not sln then
+          vim.notify('No .sln found upward from: ' .. start_dir, vim.log.levels.ERROR)
+          return
+        end
+
+        local root = vim.fs.dirname(sln)
+        vim.notify('dotnet format (solution) in: ' .. root)
+
+        vim.system({ 'dotnet', 'format' }, { cwd = root, text = true }, function(obj)
+          vim.schedule(function()
+            if obj.code ~= 0 then
+              vim.notify(obj.stderr ~= '' and obj.stderr or 'dotnet format failed', vim.log.levels.ERROR)
+              return
+            end
+            vim.notify('dotnet format solution complete')
+            vim.cmd('checktime')
+          end)
+        end)
+      end,
+      mode = '',
+      desc = '[F]ormat solution (dotnet format)',
     },
   },
-  {
-    -- Autocompletion
+  opts = {
+    notify_on_error = true,
+    format_on_save = false,
+    formatters_by_ft = {
+      lua = { 'stylua' },
+      cs = { 'csharpier' },
+    },
+  },
+},
+{
     'saghen/blink.cmp',
     event = 'VimEnter',
     version = '1.*',
@@ -916,7 +985,6 @@ require('lazy').setup({
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
       -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'onedark'
     end,
   },
 
@@ -1052,20 +1120,16 @@ require('lazy').setup({
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
-  { -- Treesitter (new main API)
-    'nvim-treesitter/nvim-treesitter',
-    lazy = false, -- ✅ main branch: do NOT lazy-load
-    build = ':TSUpdate',
-    config = function()
-      local ts = require 'nvim-treesitter'
-
-      -- optional on main; only real config is install_dir
-      ts.setup()
-
-      -- install parsers (replaces ensure_installed)
-      ts.install {
+{
+  'nvim-treesitter/nvim-treesitter',
+  build = ':TSUpdate',
+  lazy = false,
+  config = function()
+    require('nvim-treesitter').setup({
+      ensure_installed = {
         'bash',
         'c',
+        'c_sharp',
         'diff',
         'html',
         'lua',
@@ -1075,25 +1139,17 @@ require('lazy').setup({
         'query',
         'vim',
         'vimdoc',
-      }
-
-      -- start highlighting for real buffers
-      vim.api.nvim_create_autocmd({ 'BufReadPost', 'BufNewFile' }, {
-        callback = function(args)
-          pcall(vim.treesitter.start, args.buf)
-        end,
-      })
-
-      -- indentexpr hook (fine, but optional)
-      vim.api.nvim_create_autocmd('FileType', {
-        callback = function(args)
-          vim.bo[args.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
-        end,
-      })
-    end,
-  },
-
-  -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
+      },
+      highlight = {
+        enable = true,
+      },
+      indent = {
+        enable = true,
+      },
+    })
+  end,
+},
+  --following comments only work if you have downloaded the kickstart repo, not just copy pasted the
   -- init.lua. If you want these files, they are in the repository, so you can just download them and
   -- place them in the correct locations.
 
@@ -1143,7 +1199,18 @@ require('lazy').setup({
     },
   },
 })
+vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI' }, {
+  callback = function(ev)
+    vim.b[ev.buf].bufferline_touched = true
+  end,
+})
 
+vim.api.nvim_create_autocmd('BufWritePost', {
+  callback = function(ev)
+    vim.b[ev.buf].bufferline_touched = true
+    vim.b[ev.buf].bufferline_keep = true
+  end,
+})
 -- Keybindings
 -- jj to escape (works in insert + command-line + terminal modes)
 -- Doesn't interfere with single "j" so list scrolling still works.
@@ -1177,7 +1244,6 @@ map('n', '<leader>wj', '<C-w><C-j>', opts)
 map('n', '<leader>wk', '<C-w><C-k>', opts)
 
 -- General editor keymaps
-map('n', '<CR>', 'i<CR><Esc>l', opts)
 
 -- Select all
 map('n', '<C-a>', 'ggVG', opts)
@@ -1235,6 +1301,11 @@ vim.keymap.set('n', 'X', '"_X', { noremap = true })
 --vim.keymap.set('n', 'S', '"_S', { noremap = true })
 --vim.keymap.set('x', 's', '"_s', { noremap = true })
 -- blink auto complete with tab
+
+-- Keep yank register when pasting over a visual selection
+vim.keymap.set('x', 'p', '"_dP', { noremap = true, silent = true })
+vim.keymap.set('x', 'P', '"_dP', { noremap = true, silent = true })
+
 vim.keymap.set('i', '<Tab>', function()
   local ok, blink = pcall(require, 'blink.cmp')
   if ok and blink.is_visible() and (vim.fn.mode() == 'i' or vim.fn.mode() == 'ic') then
@@ -1366,3 +1437,10 @@ do
     require('telescope.builtin').marks()
   end, { noremap = true, silent = true, desc = 'Marks' })
 end
+vim.keymap.set('i', '<C-BS>', '<C-w>', { noremap = true })
+vim.keymap.set('i', '<C-Del>', '<C-o>dw', { noremap = true })
+vim.keymap.set('n', '<leader>h', function()
+  Snacks.dashboard()
+end, { noremap = true, silent = true, desc = 'Homepage' })
+
+	vim.cmd.colorscheme 'catppuccin'

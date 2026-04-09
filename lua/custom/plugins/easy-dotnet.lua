@@ -20,7 +20,49 @@ return -- lazy.nvim
       local parts = { ... }
       return table.concat(parts, sep)
     end
+    local function open_float_term(cmd, opts)
+      opts = opts or {}
+      local width = opts.width or math.floor(vim.o.columns * 0.85)
+      local height = opts.height or math.floor(vim.o.lines * 0.30)
+      local row = math.floor((vim.o.lines - height) * 0.80)
+      local col = math.floor((vim.o.columns - width) / 2)
 
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.bo[buf].buftype = 'nofile'
+      vim.bo[buf].bufhidden = 'wipe'
+      vim.bo[buf].swapfile = false
+
+      local win = vim.api.nvim_open_win(buf, true, {
+        relative = 'editor',
+        row = row,
+        col = col,
+        width = width,
+        height = height,
+        style = 'minimal',
+        border = opts.border or 'rounded',
+        title = opts.title or ' dotnet ',
+        title_pos = 'center',
+      })
+
+      -- Optional: make it feel “UI-like”
+      vim.wo[win].winblend = opts.winblend or 0
+      vim.wo[win].wrap = false
+      vim.wo[win].number = false
+      vim.wo[win].relativenumber = false
+      vim.wo[win].signcolumn = 'no'
+
+      -- Start terminal job in that buffer
+      vim.fn.termopen(cmd, {
+        on_exit = function()
+          -- keep buffer around; close window automatically if you want:
+          if vim.api.nvim_win_is_valid(win) then
+            vim.api.nvim_win_close(win, true)
+          end
+        end,
+      })
+      vim.cmd 'startinsert'
+      return buf, win
+    end
     local function prepend_path(dir)
       if type(dir) ~= 'string' or dir == '' then
         return
@@ -57,10 +99,10 @@ return -- lazy.nvim
 
     bootstrap_dotnet_path()
 
-    local function get_mason_netcoredbg_path()
-      local mason_root = join_path(vim.fn.stdpath 'data', 'mason', 'packages', 'netcoredbg', 'netcoredbg')
+    local function get_netcoredbg_path()
       if is_windows() then
-        local exe_path = join_path(mason_root, 'netcoredbg.exe')
+        -- local exe_path = 'C:\\Git\\source\\repos\\netcoredbg\\build\\src\\Release\\netcoredbg.exe' 
+
         if vim.fn.filereadable(exe_path) == 1 then
           return exe_path
         end
@@ -158,27 +200,36 @@ return -- lazy.nvim
       return vim.fn.fnamemodify(p, ':p')
     end
 
-    local function parse_msbuild_line(line)
-      -- Typical MSBuild lines:
-      -- C:\path\File.cs(12,34): error CS1002: ; expected [Proj.csproj]
-      -- /path/File.cs(12,34): warning CS0168: ... [Proj.csproj]
-      local file, lnum, col, sev, msg = line:match '^(.+)%((%d+),(%d+)%)%s*:%s*(error)%s+(.*)$'
-      if not file then
-        file, lnum, col, sev, msg = line:match '^(.+)%((%d+),(%d+)%)%s*:%s*(warning)%s+(.*)$'
-      end
-      if not file then
-        return nil
-      end
+local function parse_msbuild_line(line)
+  local file, lnum, col, sev, rest =
+    line:match('^(.+)%((%d+),(%d+)%)%s*:%s*(error)%s+(.*)$')
+  if not file then
+    file, lnum, col, sev, rest =
+      line:match('^(.+)%((%d+),(%d+)%)%s*:%s*(warning)%s+(.*)$')
+  end
+  if not file then
+    return nil
+  end
 
-      local severity = (sev == 'error') and vim.diagnostic.severity.ERROR or vim.diagnostic.severity.WARN
-      return {
-        filename = normalize_path(file),
-        lnum = tonumber(lnum),
-        col = tonumber(col),
-        severity = severity,
-        message = msg,
-      }
-    end
+  rest = (rest or ''):gsub('%s*%b[]%s*$', '')
+
+  local code, msg = rest:match('^(%S+)%s*:%s*(.*)$')
+  local message
+  if code and msg and code:match('^[A-Z]+%d+$') then
+    message = code .. ': ' .. msg
+  else
+    message = rest
+  end
+
+  local severity = (sev == 'error') and vim.diagnostic.severity.ERROR or vim.diagnostic.severity.WARN
+  return {
+    filename = normalize_path(file),
+    lnum = tonumber(lnum),
+    col = tonumber(col),
+    severity = severity,
+    message = message,
+  }
+end
 
     local function clear_build_diagnostics()
       -- Clear diagnostics for all loaded buffers in this namespace
@@ -210,7 +261,7 @@ return -- lazy.nvim
       end
 
       for bufnr, diags in pairs(per_buf) do
-        vim.diagnostic.set(dotnet_build_ns, bufnr, diags, { underline = true, virtual_text = false, signs = true })
+        vim.diagnostic.set(dotnet_build_ns, bufnr, diags, { underline = true, virtual_text = true, signs = true })
       end
     end
 
@@ -328,7 +379,6 @@ return -- lazy.nvim
         end,
       })
     end
-
     dotnet.setup {
       lsp = {
         enabled = true, -- Enable builtin roslyn lsp
@@ -343,7 +393,7 @@ return -- lazy.nvim
 
       debugger = {
         -- Prefer Mason netcoredbg if installed; otherwise let easy-dotnet-server fall back to its bundled netcoredbg
-        bin_path = get_mason_netcoredbg_path(),
+        bin_path = get_netcoredbg_path(),
         apply_value_converters = true,
         auto_register_dap = true,
         mappings = {
@@ -375,18 +425,18 @@ return -- lazy.nvim
           package = '',
         },
         mappings = {
-          run_test_from_buffer = { lhs = '<leader>r', desc = 'run test from buffer' },
-          run_all_tests_from_buffer = { lhs = '<leader>t', desc = 'run all tests from buffer' },
-          peek_stack_trace_from_buffer = { lhs = '<leader>p', desc = 'peek stack trace from buffer' },
-          filter_failed_tests = { lhs = '<leader>fe', desc = 'filter failed tests' },
-          debug_test = { lhs = '<leader>mt', desc = 'debug test' },
+          run_test_from_buffer = { lhs = '<leader>tr', desc = 'run test from buffer' },
+          run_all_tests_from_buffer = { lhs = '<leader>tR', desc = 'run all tests from buffer' },
+          peek_stack_trace_from_buffer = { lhs = '<leader>tp', desc = 'peek stack trace from buffer' },
+          filter_failed_tests = { lhs = '<leader>tfe', desc = 'filter failed tests' },
+          debug_test = { lhs = '<leader>tmt', desc = 'debug test' },
           go_to_file = { lhs = 'g', desc = 'go to file' },
           run_all = { lhs = '<leader>R', desc = 'run all tests' },
           run = { lhs = '<leader>r', desc = 'run test' },
-          peek_stacktrace = { lhs = '<leader>p', desc = 'peek stacktrace of failed test' },
+          peek_stacktrace = { lhs = '<leader>tst', desc = 'peek stacktrace of failed test' },
           expand = { lhs = 'o', desc = 'expand' },
           expand_node = { lhs = 'E', desc = 'expand node' },
-          expand_all = { lhs = '-', desc = 'expand all' },
+          expand_all = { lhs = 'O', desc = 'expand all' },
           collapse_all = { lhs = 'W', desc = 'collapse all' },
           close = { lhs = 'q', desc = 'close testrunner' },
           refresh_testrunner = { lhs = '<C-r>', desc = 'refresh testrunner' },
@@ -426,10 +476,7 @@ return -- lazy.nvim
           command = command .. '\r'
         end
 
-        -- Horizontal split instead of vertical
-        vim.cmd 'botright split'
-        vim.cmd 'resize 12'
-        vim.cmd('term ' .. command)
+        open_float_term(command, { title = (' dotnet %s '):format(action) })
       end,
 
       csproj_mappings = true,
@@ -478,6 +525,8 @@ return -- lazy.nvim
     end)
 
     vim.keymap.set('n', '<leader>md', function()
+	local netcoredbg_path = get_netcoredbg_path()
+	print('netcoredbg_path =', netcoredbg_path)
       dotnet.debug()
     end)
 

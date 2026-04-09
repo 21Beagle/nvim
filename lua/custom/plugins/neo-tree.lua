@@ -58,7 +58,7 @@ return {
 
     window = {
       position = 'left',
-      width = 30,
+      width = 50,
 
       -- Prevent Neo-tree “open file” from replacing dap-ui windows if they happen to be focused
       open_files_do_not_replace_types = {
@@ -69,6 +69,14 @@ return {
         'dapui_watches',
         'dapui_console',
         'dapui_repl',
+      },
+    },
+    event_handlers = {
+      {
+        event = 'file_opened',
+        handler = function()
+          vim.cmd 'Neotree close'
+        end,
       },
     },
   },
