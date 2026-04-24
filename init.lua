@@ -600,12 +600,6 @@ require('lazy').setup({
             return bufnr, 1, 0
           end
 
-          if lnum == 0 then
-            lnum = 1
-          elseif type(entry.value) == 'table' and entry.value.lnum == lnum then
-            lnum = lnum + 1
-          end
-
           return bufnr, lnum, col or 0
         end
 
@@ -691,6 +685,7 @@ require('lazy').setup({
           local file = path ~= '' and vim.fn.fnamemodify(path, ':.') or '[No file]'
           local ft = vim.bo[bufnr].filetype
           local block, start_line, end_line = code_block(bufnr, lnum)
+          local problem_line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ''
 
           local out = {}
 
@@ -705,13 +700,19 @@ require('lazy').setup({
             )
           end
 
-          out[#out + 1] = 'lines' .. start_line .. '-' .. end_line
+          out[#out + 1] = 'lines ' .. start_line .. '-' .. end_line
 
-          for _, line in ipairs(block) do
-            out[#out + 1] = line
+          for i, line in ipairs(block) do
+            local line_no = start_line + i - 1
+            local marker = line_no == lnum and '>> ' or '   '
+            out[#out + 1] = marker .. line_no .. ': ' .. line
           end
+
           out[#out + 1] = ''
           out[#out + 1] = message
+          out[#out + 1] = ''
+          out[#out + 1] = 'problem line'
+          out[#out + 1] = '>> ' .. lnum .. ': ' .. problem_line
           out[#out + 1] = ''
 
           local text = table.concat(out, '\n')
@@ -721,7 +722,6 @@ require('lazy').setup({
 
           vim.notify('Yanked diagnostic block', vim.log.levels.INFO)
         end
-
         builtin.diagnostics {
           layout_strategy = 'horizontal',
           layout_config = {
