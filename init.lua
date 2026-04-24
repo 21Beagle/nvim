@@ -33,7 +33,7 @@ What is Kickstart?
 
     If you don't know anything about Lua, I recommend taking some time to read through
     a guide. One possible example which will only take 10-15 minutes:
-      - https://learnxinyminutes.com/docs/lua/
+ :    - https://learnxinyminutes.com/docs/lua/
 
     After understanding a bit more about Lua, you can use `:help lua-guide` as a
     reference for how Neovim integrates Lua.
@@ -82,6 +82,9 @@ I hope you enjoy your Neovim journey,
 
 P.S. You can delete this when you're done too. It's your config now! :)
 --]]
+
+vim.opt.shortmess:append 'I'
+vim.opt.termguicolors = true
 
 -- Set <space> as the leader key
 -- See `:help mapleader`
@@ -429,6 +432,7 @@ require('lazy').setup({
           },
         },
       }
+
       -- Enable Telescope extensions if they are installed
       pcall(require('telescope').load_extension, 'fzf')
       pcall(require('telescope').load_extension, 'ui-select')
@@ -456,14 +460,17 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>sb', builtin.buffers, { desc = '[S]earch [B]uffers' })
 
       -- Slightly advanced example of overriding default behavior and theme
-      vim.keymap.set('n', '<leader>/', function()
-        -- You can pass additional configuration to Telescope to change the theme, layout, etc.
-        builtin.current_buffer_fuzzy_find(require('telescope.themes').get_dropdown {
-          winblend = 10,
-          previewer = false,
-        })
-      end, { desc = '[/] Fuzzily search in current buffer' })
-
+      vim.keymap.set('n', '<leader>sb', function()
+        builtin.current_buffer_fuzzy_find {
+          prompt_title = 'Search Current Buffer',
+          layout_strategy = 'horizontal',
+          layout_config = {
+            prompt_position = 'top',
+          },
+          sorting_strategy = 'ascending',
+          previewer = true,
+        }
+      end, { desc = '[/] Fuzzily search current buffer' })
       -- It's also possible to pass additional configuration options.
       --  See `:help telescope.builtin.live_grep()` for information about particular keys
       vim.keymap.set('n', '<leader>s/', function()
@@ -1155,7 +1162,6 @@ require('lazy').setup({
   --
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
   { import = 'custom.plugins' },
-  { import = 'custom.features' },
   { import = 'custom.colourschemes' },
 
   --
@@ -1190,6 +1196,11 @@ vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI' }, {
   end,
 })
 
+vim.api.nvim_create_autocmd({ 'TextChanged', 'TextChangedI' }, {
+  callback = function(ev)
+    vim.b[ev.buf].bufferline_touched = true
+  end,
+})
 vim.api.nvim_create_autocmd('BufWritePost', {
   callback = function(ev)
     vim.b[ev.buf].bufferline_touched = true
