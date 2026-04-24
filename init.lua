@@ -486,6 +486,7 @@ require('lazy').setup({
           vim.bo[msg_buf].bufhidden = 'wipe'
           vim.bo[msg_buf].swapfile = false
           vim.bo[msg_buf].filetype = 'markdown'
+
           msg_win = vim.api.nvim_open_win(msg_buf, false, {
             relative = 'editor',
             row = row,
@@ -576,6 +577,62 @@ require('lazy').setup({
           return ''
         end
 
+        local function entry_position(entry)
+          if not entry then
+            return nil, nil, nil
+          end
+
+          local bufnr = entry.bufnr
+          local lnum = entry.lnum
+          local col = entry.col
+
+          if type(entry.value) == 'table' then
+            bufnr = bufnr or entry.value.bufnr
+            lnum = lnum or entry.value.lnum
+            col = col or entry.value.col
+          end
+
+          if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+            return nil, nil, nil
+          end
+
+          if not lnum then
+            return bufnr, 1, 0
+          end
+
+          if lnum == 0 then
+            lnum = 1
+          elseif type(entry.value) == 'table' and entry.value.lnum == lnum then
+            lnum = lnum + 1
+          end
+
+          return bufnr, lnum, col or 0
+        end
+
+        local function code_block(bufnr, lnum)
+          local total = vim.api.nvim_buf_line_count(bufnr)
+          local start_line = lnum
+          local end_line = lnum
+
+          while start_line > 1 do
+            local line = vim.api.nvim_buf_get_lines(bufnr, start_line - 2, start_line - 1, false)[1] or ''
+            if line:match '^%s*$' then
+              break
+            end
+            start_line = start_line - 1
+          end
+
+          while end_line < total do
+            local line = vim.api.nvim_buf_get_lines(bufnr, end_line, end_line + 1, false)[1] or ''
+            if line:match '^%s*$' then
+              break
+            end
+            end_line = end_line + 1
+          end
+
+          return vim.api.nvim_buf_get_lines(bufnr, start_line - 1, end_line, false), start_line, end_line
+        end
+
         local function update_msg()
           local entry = action_state.get_selected_entry()
 
@@ -610,6 +667,59 @@ require('lazy').setup({
           end
 
           set_msg(lines)
+        end
+
+        local function yank_diagnostic()
+          local entry = action_state.get_selected_entry()
+
+          if not entry then
+            vim.notify('No diagnostic selected', vim.log.levels.WARN)
+            return
+          end
+
+          local bufnr, lnum, col = entry_position(entry)
+          local message = entry_message(entry) or ''
+          local source = entry_source(entry)
+          local code = entry_code(entry)
+
+          if not bufnr then
+            vim.notify('Could not resolve diagnostic buffer', vim.log.levels.WARN)
+            return
+          end
+
+          local path = vim.api.nvim_buf_get_name(bufnr)
+          local file = path ~= '' and vim.fn.fnamemodify(path, ':.') or '[No file]'
+          local ft = vim.bo[bufnr].filetype
+          local block, start_line, end_line = code_block(bufnr, lnum)
+
+          local out = {}
+
+          out[#out + 1] = file .. ':' .. lnum .. ':' .. ((col or 0) + 1)
+
+          if source ~= '' or code ~= '' then
+            out[#out + 1] = table.concat(
+              vim.tbl_filter(function(part)
+                return part ~= ''
+              end, { source, code }),
+              '  '
+            )
+          end
+
+          out[#out + 1] = 'lines' .. start_line .. '-' .. end_line
+
+          for _, line in ipairs(block) do
+            out[#out + 1] = line
+          end
+          out[#out + 1] = ''
+          out[#out + 1] = message
+          out[#out + 1] = ''
+
+          local text = table.concat(out, '\n')
+
+          vim.fn.setreg('"', text)
+          vim.fn.setreg('+', text)
+
+          vim.notify('Yanked diagnostic block', vim.log.levels.INFO)
         end
 
         builtin.diagnostics {
@@ -654,6 +764,7 @@ require('lazy').setup({
             map('i', '<C-p>', move_prev)
             map('i', '<CR>', select_default)
             map('i', '<Esc>', close)
+            map('i', '<C-y>', yank_diagnostic)
 
             map('n', 'j', move_next)
             map('n', 'k', move_prev)
@@ -662,12 +773,14 @@ require('lazy').setup({
             map('n', '<CR>', select_default)
             map('n', 'q', close)
             map('n', '<Esc>', close)
+            map('n', 'y', yank_diagnostic)
 
             return true
           end,
         }
       end, { desc = '[S]earch [D]iagnostics' })
-      vim.keymap.set('n', '<leader><leader>', function()
+
+      vim.keymap.set('n', 'leader><leader>', function()
         require('telescope').extensions.frecency.frecency {
           workspace = 'CWD',
           initial_mode = 'insert',
