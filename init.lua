@@ -723,6 +723,7 @@ require('lazy').setup({
           vim.notify('Yanked diagnostic block', vim.log.levels.INFO)
         end
         builtin.diagnostics {
+          severity_sort = true,
           layout_strategy = 'horizontal',
           layout_config = {
             prompt_position = 'top',
