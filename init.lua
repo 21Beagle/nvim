@@ -658,7 +658,18 @@ require('lazy').setup({
         end
 
         local function code_block(bufnr, lnum)
-          local total = vim.api.nvim_buf_line_count(bufnr)
+          local path = vim.api.nvim_buf_get_name(bufnr)
+          local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+
+          if #lines == 1 and lines[1] == '' and path ~= '' and vim.fn.filereadable(path) == 1 then
+            lines = vim.fn.readfile(path)
+          end
+
+          local total = #lines
+
+          if total == 0 then
+            return { '' }, 1, 1
+          end
 
           lnum = math.max(1, math.min(lnum, total))
 
@@ -666,7 +677,7 @@ require('lazy').setup({
           local end_line = lnum
 
           while start_line > 1 do
-            local line = vim.api.nvim_buf_get_lines(bufnr, start_line - 2, start_line - 1, false)[1] or ''
+            local line = lines[start_line - 1] or ''
 
             if line:match '^%s*$' then
               break
@@ -676,7 +687,7 @@ require('lazy').setup({
           end
 
           while end_line < total do
-            local line = vim.api.nvim_buf_get_lines(bufnr, end_line, end_line + 1, false)[1] or ''
+            local line = lines[end_line + 1] or ''
 
             if line:match '^%s*$' then
               break
@@ -685,63 +696,20 @@ require('lazy').setup({
             end_line = end_line + 1
           end
 
-          if start_line > end_line then
+          local block = {}
+
+          for i = start_line, end_line do
+            block[#block + 1] = lines[i] or ''
+          end
+
+          if #block == 0 then
+            block = { lines[lnum] or '' }
             start_line = lnum
             end_line = lnum
           end
 
-          local lines = vim.api.nvim_buf_get_lines(bufnr, start_line - 1, end_line, false)
-
-          if #lines == 0 then
-            lines = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)
-            start_line = lnum
-            end_line = lnum
-          end
-
-          if #lines == 0 then
-            lines = { '' }
-            start_line = lnum
-            end_line = lnum
-          end
-
-          return lines, start_line, end_line
+          return block, start_line, end_line, lines[lnum] or ''
         end
-        local function update_msg()
-          local entry = action_state.get_selected_entry()
-
-          if not entry then
-            set_msg { 'No diagnostic selected.' }
-            return
-          end
-
-          local message = entry_message(entry)
-          local source = entry_source(entry)
-          local code = entry_code(entry)
-
-          if not message or message == '' then
-            set_msg { 'No diagnostic message found.' }
-            return
-          end
-
-          local lines = {}
-
-          if source ~= '' or code ~= '' then
-            lines[#lines + 1] = table.concat(
-              vim.tbl_filter(function(part)
-                return part ~= ''
-              end, { source, code }),
-              '  '
-            )
-            lines[#lines + 1] = ''
-          end
-
-          for _, line in ipairs(vim.split(message, '\n', { plain = true })) do
-            lines[#lines + 1] = line
-          end
-
-          set_msg(lines)
-        end
-
         local function yank_diagnostic()
           local entry = action_state.get_selected_entry()
 
