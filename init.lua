@@ -659,28 +659,53 @@ require('lazy').setup({
 
         local function code_block(bufnr, lnum)
           local total = vim.api.nvim_buf_line_count(bufnr)
+
+          lnum = math.max(1, math.min(lnum, total))
+
           local start_line = lnum
           local end_line = lnum
 
           while start_line > 1 do
             local line = vim.api.nvim_buf_get_lines(bufnr, start_line - 2, start_line - 1, false)[1] or ''
+
             if line:match '^%s*$' then
               break
             end
+
             start_line = start_line - 1
           end
 
           while end_line < total do
             local line = vim.api.nvim_buf_get_lines(bufnr, end_line, end_line + 1, false)[1] or ''
+
             if line:match '^%s*$' then
               break
             end
+
             end_line = end_line + 1
           end
 
-          return vim.api.nvim_buf_get_lines(bufnr, start_line - 1, end_line, false), start_line, end_line
-        end
+          if start_line > end_line then
+            start_line = lnum
+            end_line = lnum
+          end
 
+          local lines = vim.api.nvim_buf_get_lines(bufnr, start_line - 1, end_line, false)
+
+          if #lines == 0 then
+            lines = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)
+            start_line = lnum
+            end_line = lnum
+          end
+
+          if #lines == 0 then
+            lines = { '' }
+            start_line = lnum
+            end_line = lnum
+          end
+
+          return lines, start_line, end_line
+        end
         local function update_msg()
           local entry = action_state.get_selected_entry()
 
