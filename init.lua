@@ -731,7 +731,7 @@ require('lazy').setup({
             height = layout.height,
             preview_width = layout.preview_width,
           },
-          sorting_strategy = 'ascending',
+          sorting_strategy = 'descending',
           previewer = true,
           attach_mappings = function(prompt_bufnr, map)
             vim.defer_fn(function()
@@ -739,11 +739,16 @@ require('lazy').setup({
               update_msg()
             end, 50)
 
+            vim.api.nvim_create_autocmd({ 'WinClosed', 'BufLeave', 'BufWipeout' }, {
+              buffer = prompt_bufnr,
+              once = true,
+              callback = close_msg,
+            })
+
             local move_next = function()
               actions.move_selection_next(prompt_bufnr)
               vim.defer_fn(update_msg, 20)
             end
-
             local move_prev = function()
               actions.move_selection_previous(prompt_bufnr)
               vim.defer_fn(update_msg, 20)
@@ -764,7 +769,6 @@ require('lazy').setup({
             map('i', '<C-n>', move_next)
             map('i', '<C-p>', move_prev)
             map('i', '<CR>', select_default)
-            map('i', '<Esc>', close)
             map('i', '<C-y>', yank_diagnostic)
 
             map('n', 'j', move_next)
