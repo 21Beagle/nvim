@@ -804,7 +804,7 @@ require('lazy').setup({
           separator = ' ',
           items = {
             { width = 2 },
-            { width = 20 },
+            { width = 16 },
             { remaining = true },
             { width = 9 },
             { width = 12 },
