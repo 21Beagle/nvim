@@ -450,9 +450,13 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
 
       vim.keymap.set('n', '<leader>sd', function()
-        local builtin = require 'telescope.builtin'
         local actions = require 'telescope.actions'
         local action_state = require 'telescope.actions.state'
+        local pickers = require 'telescope.pickers'
+        local finders = require 'telescope.finders'
+        local conf = require('telescope.config').values
+        local previewers = require 'telescope.previewers'
+        local entry_display = require 'telescope.pickers.entry_display'
 
         local layout = {
           width = 0.78,
@@ -515,6 +519,56 @@ require('lazy').setup({
           vim.bo[msg_buf].modifiable = true
           vim.api.nvim_buf_set_lines(msg_buf, 0, -1, false, lines)
           vim.bo[msg_buf].modifiable = false
+        end
+
+        local function severity_rank(severity)
+          if severity == vim.diagnostic.severity.ERROR then
+            return 1
+          end
+
+          if severity == vim.diagnostic.severity.WARN then
+            return 2
+          end
+
+          if severity == vim.diagnostic.severity.INFO then
+            return 3
+          end
+
+          return 4
+        end
+
+        local function severity_label(severity)
+          if severity == vim.diagnostic.severity.ERROR then
+            return 'ERROR'
+          end
+
+          if severity == vim.diagnostic.severity.WARN then
+            return 'WARN'
+          end
+
+          if severity == vim.diagnostic.severity.INFO then
+            return 'INFO'
+          end
+
+          return 'HINT'
+        end
+
+        local function severity_icon(label)
+          return ({
+            ERROR = '󰅚',
+            WARN = '󰀪',
+            INFO = '󰋽',
+            HINT = '󰌶',
+          })[label] or '󰌶'
+        end
+
+        local function severity_hl(label)
+          return ({
+            ERROR = 'DiagnosticError',
+            WARN = 'DiagnosticWarn',
+            INFO = 'DiagnosticInfo',
+            HINT = 'DiagnosticHint',
+          })[label] or 'DiagnosticHint'
         end
 
         local function entry_message(entry)
@@ -683,7 +737,6 @@ require('lazy').setup({
 
           local path = vim.api.nvim_buf_get_name(bufnr)
           local file = path ~= '' and vim.fn.fnamemodify(path, ':.') or '[No file]'
-          local ft = vim.bo[bufnr].filetype
           local block, start_line, end_line = code_block(bufnr, lnum)
           local problem_line = vim.api.nvim_buf_get_lines(bufnr, lnum - 1, lnum, false)[1] or ''
 
@@ -722,67 +775,160 @@ require('lazy').setup({
 
           vim.notify('Yanked diagnostic block', vim.log.levels.INFO)
         end
-        builtin.diagnostics {
-          severity_sort = true,
-          layout_strategy = 'horizontal',
-          layout_config = {
-            prompt_position = 'top',
-            width = layout.width,
-            height = layout.height,
-            preview_width = layout.preview_width,
+
+        local diagnostics = vim.diagnostic.get(nil)
+
+        table.sort(diagnostics, function(a, b)
+          local ar = severity_rank(a.severity)
+          local br = severity_rank(b.severity)
+
+          if ar ~= br then
+            return ar < br
+          end
+
+          local an = vim.api.nvim_buf_get_name(a.bufnr)
+          local bn = vim.api.nvim_buf_get_name(b.bufnr)
+
+          if an ~= bn then
+            return an < bn
+          end
+
+          if a.lnum ~= b.lnum then
+            return a.lnum < b.lnum
+          end
+
+          return a.col < b.col
+        end)
+
+        local displayer = entry_display.create {
+          separator = ' ',
+          items = {
+            { width = 2 },
+            { width = 20 },
+            { remaining = true },
+            { width = 9 },
+            { width = 12 },
           },
-          sorting_strategy = 'descending',
-          previewer = true,
-          attach_mappings = function(prompt_bufnr, map)
-            vim.defer_fn(function()
-              make_msg_window()
-              update_msg()
-            end, 50)
-
-            vim.api.nvim_create_autocmd({ 'WinClosed', 'BufLeave', 'BufWipeout' }, {
-              buffer = prompt_bufnr,
-              once = true,
-              callback = close_msg,
-            })
-
-            local move_next = function()
-              actions.move_selection_next(prompt_bufnr)
-              vim.defer_fn(update_msg, 20)
-            end
-            local move_prev = function()
-              actions.move_selection_previous(prompt_bufnr)
-              vim.defer_fn(update_msg, 20)
-            end
-
-            local close = function()
-              close_msg()
-              actions.close(prompt_bufnr)
-            end
-
-            local select_default = function()
-              close_msg()
-              actions.select_default(prompt_bufnr)
-            end
-
-            map('i', '<Down>', move_next)
-            map('i', '<Up>', move_prev)
-            map('i', '<C-n>', move_next)
-            map('i', '<C-p>', move_prev)
-            map('i', '<CR>', select_default)
-            map('i', '<C-y>', yank_diagnostic)
-
-            map('n', 'j', move_next)
-            map('n', 'k', move_prev)
-            map('n', '<Down>', move_next)
-            map('n', '<Up>', move_prev)
-            map('n', '<CR>', select_default)
-            map('n', 'q', close)
-            map('n', '<Esc>', close)
-            map('n', 'y', yank_diagnostic)
-
-            return true
-          end,
         }
+
+        pickers
+          .new({}, {
+            prompt_title = 'Diagnostics',
+            finder = finders.new_table {
+              results = diagnostics,
+              entry_maker = function(diagnostic)
+                local bufnr = diagnostic.bufnr
+                local path = vim.api.nvim_buf_get_name(bufnr)
+                local file = path ~= '' and vim.fn.fnamemodify(path, ':t') or '[No file]'
+                local rel = path ~= '' and vim.fn.fnamemodify(path, ':.') or '[No file]'
+                local lnum = diagnostic.lnum + 1
+                local col = diagnostic.col + 1
+                local label = severity_label(diagnostic.severity)
+                local icon = severity_icon(label)
+                local hl = severity_hl(label)
+                local message = diagnostic.message or ''
+                local source = diagnostic.source or ''
+                local code = diagnostic.code and tostring(diagnostic.code) or ''
+                local code_text = code ~= '' and code or source
+                local location = string.format('%d:%d', lnum, col)
+
+                if code_text == '' then
+                  code_text = label
+                end
+
+                local function make_display(entry)
+                  return displayer {
+                    { entry.icon, entry.hl },
+                    { entry.code_text, entry.hl },
+                    { entry.file, 'TelescopeResultsIdentifier' },
+                    { entry.location, 'TelescopeResultsNumber' },
+                    { entry.label, entry.hl },
+                  }
+                end
+
+                return {
+                  value = diagnostic,
+                  display = make_display,
+                  ordinal = string.format('%d %s %s %s %d %d %s', severity_rank(diagnostic.severity), label, code_text, rel, lnum, col, message),
+                  filename = path,
+                  bufnr = bufnr,
+                  lnum = lnum,
+                  col = diagnostic.col,
+                  text = message,
+                  message = message,
+                  source = source,
+                  code = code,
+                  code_text = code_text,
+                  file = file,
+                  location = location,
+                  label = label,
+                  icon = icon,
+                  hl = hl,
+                }
+              end,
+            },
+            sorter = conf.generic_sorter {},
+            previewer = previewers.vim_buffer_vimgrep.new {},
+            layout_strategy = 'horizontal',
+            layout_config = {
+              prompt_position = 'top',
+              width = layout.width,
+              height = layout.height,
+              preview_width = layout.preview_width,
+            },
+            sorting_strategy = 'ascending',
+            attach_mappings = function(prompt_bufnr, map)
+              vim.defer_fn(function()
+                make_msg_window()
+                update_msg()
+              end, 50)
+
+              vim.api.nvim_create_autocmd({ 'WinClosed', 'BufLeave', 'BufWipeout' }, {
+                buffer = prompt_bufnr,
+                once = true,
+                callback = close_msg,
+              })
+
+              local move_next = function()
+                actions.move_selection_next(prompt_bufnr)
+                vim.defer_fn(update_msg, 20)
+              end
+
+              local move_prev = function()
+                actions.move_selection_previous(prompt_bufnr)
+                vim.defer_fn(update_msg, 20)
+              end
+
+              local close = function()
+                close_msg()
+                actions.close(prompt_bufnr)
+              end
+
+              local select_default = function()
+                close_msg()
+                actions.select_default(prompt_bufnr)
+              end
+
+              map('i', '<Down>', move_next)
+              map('i', '<Up>', move_prev)
+              map('i', '<C-n>', move_next)
+              map('i', '<C-p>', move_prev)
+              map('i', '<CR>', select_default)
+              map('i', '<C-y>', yank_diagnostic)
+
+              map('n', 'j', move_next)
+              map('n', 'k', move_prev)
+              map('n', '<Down>', move_next)
+              map('n', '<Up>', move_prev)
+              map('n', '<CR>', select_default)
+              map('n', 'q', close)
+              map('n', '<Esc>', close)
+              map('n', 'y', yank_diagnostic)
+
+              return true
+            end,
+          })
+          :find()
       end, { desc = '[S]earch [D]iagnostics' })
 
       vim.keymap.set('n', 'leader><leader>', function()
