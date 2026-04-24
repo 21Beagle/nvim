@@ -710,6 +710,43 @@ require('lazy').setup({
 
           return block, start_line, end_line, lines[lnum] or ''
         end
+
+        local function update_msg()
+          local entry = action_state.get_selected_entry()
+
+          if not entry then
+            set_msg { 'No diagnostic selected.' }
+            return
+          end
+
+          local message = entry_message(entry)
+          local source = entry_source(entry)
+          local code = entry_code(entry)
+
+          if not message or message == '' then
+            set_msg { 'No diagnostic message found.' }
+            return
+          end
+
+          local lines = {}
+
+          if source ~= '' or code ~= '' then
+            lines[#lines + 1] = table.concat(
+              vim.tbl_filter(function(part)
+                return part ~= ''
+              end, { source, code }),
+              '  '
+            )
+            lines[#lines + 1] = ''
+          end
+
+          for _, line in ipairs(vim.split(message, '\n', { plain = true })) do
+            lines[#lines + 1] = line
+          end
+
+          set_msg(lines)
+        end
+
         local function yank_diagnostic()
           local entry = action_state.get_selected_entry()
 
