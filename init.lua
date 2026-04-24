@@ -446,10 +446,227 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>sp', builtin.builtin, { desc = '[S]earch [P]ickers (Telescope)' })
       vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = '[S]earch current [W]ord' })
       vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
-      vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
 
+      vim.keymap.set('n', '<leader>sd', function()
+        local builtin = require 'telescope.builtin'
+        local actions = require 'telescope.actions'
+        local action_state = require 'telescope.actions.state'
+
+        local layout = {
+          width = 0.78,
+          height = 0.48,
+          preview_width = 0.55,
+          message_height = 5,
+          gap = 1,
+        }
+
+        local msg_win = nil
+        local msg_buf = nil
+
+        local function close_msg()
+          if msg_win and vim.api.nvim_win_is_valid(msg_win) then
+            pcall(vim.api.nvim_win_close, msg_win, true)
+          end
+
+          msg_win = nil
+          msg_buf = nil
+        end
+
+        local function make_msg_window()
+          local width = math.floor(vim.o.columns * layout.width) - 2
+          local picker_height = math.floor(vim.o.lines * layout.height)
+          local picker_row = math.floor((vim.o.lines - picker_height - layout.message_height - layout.gap) / 2)
+          local row = picker_row + picker_height + layout.gap
+          local col = math.floor((vim.o.columns - width - 2) / 2)
+
+          msg_buf = vim.api.nvim_create_buf(false, true)
+          vim.bo[msg_buf].buftype = 'nofile'
+          vim.bo[msg_buf].bufhidden = 'wipe'
+          vim.bo[msg_buf].swapfile = false
+          vim.bo[msg_buf].filetype = 'markdown'
+          msg_win = vim.api.nvim_open_win(msg_buf, false, {
+            relative = 'editor',
+            row = row,
+            col = col,
+            width = width,
+            height = layout.message_height,
+            style = 'minimal',
+            border = 'rounded',
+            title = 'Diagnostic Message',
+            title_pos = 'center',
+            zindex = 200,
+            focusable = false,
+          })
+
+          vim.wo[msg_win].wrap = true
+          vim.wo[msg_win].number = false
+          vim.wo[msg_win].relativenumber = false
+          vim.wo[msg_win].signcolumn = 'no'
+        end
+
+        local function set_msg(lines)
+          if not msg_buf or not vim.api.nvim_buf_is_valid(msg_buf) then
+            return
+          end
+
+          vim.bo[msg_buf].modifiable = true
+          vim.api.nvim_buf_set_lines(msg_buf, 0, -1, false, lines)
+          vim.bo[msg_buf].modifiable = false
+        end
+
+        local function entry_message(entry)
+          if not entry then
+            return nil
+          end
+
+          if type(entry.value) == 'table' and entry.value.message then
+            return entry.value.message
+          end
+
+          if entry.message then
+            return entry.message
+          end
+
+          if entry.text then
+            return entry.text
+          end
+
+          if entry.ordinal then
+            return entry.ordinal
+          end
+
+          if entry.display then
+            return tostring(entry.display)
+          end
+
+          return nil
+        end
+
+        local function entry_source(entry)
+          if not entry then
+            return ''
+          end
+
+          if type(entry.value) == 'table' and entry.value.source then
+            return entry.value.source
+          end
+
+          if entry.source then
+            return entry.source
+          end
+
+          return ''
+        end
+
+        local function entry_code(entry)
+          if not entry then
+            return ''
+          end
+
+          if type(entry.value) == 'table' and entry.value.code then
+            return tostring(entry.value.code)
+          end
+
+          if entry.code then
+            return tostring(entry.code)
+          end
+
+          return ''
+        end
+
+        local function update_msg()
+          local entry = action_state.get_selected_entry()
+
+          if not entry then
+            set_msg { 'No diagnostic selected.' }
+            return
+          end
+
+          local message = entry_message(entry)
+          local source = entry_source(entry)
+          local code = entry_code(entry)
+
+          if not message or message == '' then
+            set_msg { 'No diagnostic message found.' }
+            return
+          end
+
+          local lines = {}
+
+          if source ~= '' or code ~= '' then
+            lines[#lines + 1] = table.concat(
+              vim.tbl_filter(function(part)
+                return part ~= ''
+              end, { source, code }),
+              '  '
+            )
+            lines[#lines + 1] = ''
+          end
+
+          for _, line in ipairs(vim.split(message, '\n', { plain = true })) do
+            lines[#lines + 1] = line
+          end
+
+          set_msg(lines)
+        end
+
+        builtin.diagnostics {
+          layout_strategy = 'horizontal',
+          layout_config = {
+            prompt_position = 'top',
+            width = layout.width,
+            height = layout.height,
+            preview_width = layout.preview_width,
+          },
+          sorting_strategy = 'ascending',
+          previewer = true,
+          attach_mappings = function(prompt_bufnr, map)
+            vim.defer_fn(function()
+              make_msg_window()
+              update_msg()
+            end, 50)
+
+            local move_next = function()
+              actions.move_selection_next(prompt_bufnr)
+              vim.defer_fn(update_msg, 20)
+            end
+
+            local move_prev = function()
+              actions.move_selection_previous(prompt_bufnr)
+              vim.defer_fn(update_msg, 20)
+            end
+
+            local close = function()
+              close_msg()
+              actions.close(prompt_bufnr)
+            end
+
+            local select_default = function()
+              close_msg()
+              actions.select_default(prompt_bufnr)
+            end
+
+            map('i', '<Down>', move_next)
+            map('i', '<Up>', move_prev)
+            map('i', '<C-n>', move_next)
+            map('i', '<C-p>', move_prev)
+            map('i', '<CR>', select_default)
+            map('i', '<Esc>', close)
+
+            map('n', 'j', move_next)
+            map('n', 'k', move_prev)
+            map('n', '<Down>', move_next)
+            map('n', '<Up>', move_prev)
+            map('n', '<CR>', select_default)
+            map('n', 'q', close)
+            map('n', '<Esc>', close)
+
+            return true
+          end,
+        }
+      end, { desc = '[S]earch [D]iagnostics' })
       vim.keymap.set('n', '<leader><leader>', function()
         require('telescope').extensions.frecency.frecency {
           workspace = 'CWD',
