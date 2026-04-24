@@ -203,7 +203,7 @@ vim.keymap.set('n', '<leader>we', function()
   vim.cmd 'split'
 end, { desc = 'Split window horizontally', silent = true })
 
-vim.keymap.set( 'n', '<leader>wo', '<cmd>only<CR>', { desc = 'Close other windows' }) 
+vim.keymap.set('n', '<leader>wo', '<cmd>only<CR>', { desc = 'Close other windows' })
 -- Keybinds to make split navigation easier.
 --  Use CTRL+<hjkl> to switch between windows
 -- --
@@ -782,111 +782,107 @@ require('lazy').setup({
     end,
   },
 
-{
-  'stevearc/conform.nvim',
-  cmd = { 'ConformInfo' },
-  keys = {
-    {
-      '<leader>ff',
-      function()
-        require('conform').format {
-          async = true,
-          lsp_fallback = false,
-          formatters = { 'csharpier', 'stylua' },
-        }
-      end,
-      mode = '',
-      desc = '[F]ormat file (Conform)',
-    },
-    {
-      '<leader>fd',
-      function()
-        local buf = vim.api.nvim_get_current_buf()
-        local file = vim.api.nvim_buf_get_name(buf)
-        if file == '' then
-          vim.notify('No file for current buffer', vim.log.levels.ERROR)
-          return
-        end
+  {
+    'stevearc/conform.nvim',
+    cmd = { 'ConformInfo' },
+    keys = {
+      {
+        '<leader>ff',
+        function()
+          require('conform').format {
+            async = true,
+            lsp_fallback = false,
+            formatters = { 'csharpier', 'stylua' },
+          }
+        end,
+        mode = '',
+        desc = '[F]ormat file (Conform)',
+      },
+      {
+        '<leader>fd',
+        function()
+          local buf = vim.api.nvim_get_current_buf()
+          local file = vim.api.nvim_buf_get_name(buf)
+          if file == '' then
+            vim.notify('No file for current buffer', vim.log.levels.ERROR)
+            return
+          end
 
-        vim.cmd('write')
+          vim.cmd 'write'
 
-        local start_dir = vim.fs.dirname(file)
-        local sln = vim.fs.find(function(name)
-          return name:match('%.sln$') ~= nil
-        end, { upward = true, path = start_dir })[1]
+          local start_dir = vim.fs.dirname(file)
+          local sln = vim.fs.find(function(name)
+            return name:match '%.sln$' ~= nil
+          end, { upward = true, path = start_dir })[1]
 
-        if not sln then
-          vim.notify('No .sln found upward from: ' .. start_dir, vim.log.levels.ERROR)
-          return
-        end
+          if not sln then
+            vim.notify('No .sln found upward from: ' .. start_dir, vim.log.levels.ERROR)
+            return
+          end
 
-        local root = vim.fs.dirname(sln)
-        local rel = vim.fn.fnamemodify(file, ':.'):gsub('\\', '/')
+          local root = vim.fs.dirname(sln)
+          local rel = vim.fn.fnamemodify(file, ':.'):gsub('\\', '/')
 
-        vim.notify('dotnet format (file): ' .. rel)
+          vim.notify('dotnet format (file): ' .. rel)
 
-        vim.system(
-          { 'dotnet', 'format', '--include', rel, '--verbosity', 'minimal' },
-          { cwd = root, text = true },
-          function(obj)
+          vim.system({ 'dotnet', 'format', '--include', rel, '--verbosity', 'minimal' }, { cwd = root, text = true }, function(obj)
             vim.schedule(function()
               if obj.code ~= 0 then
                 vim.notify(obj.stderr ~= '' and obj.stderr or 'dotnet format failed', vim.log.levels.ERROR)
                 return
               end
-              vim.notify('dotnet format file complete')
-              vim.cmd('checktime')
+              vim.notify 'dotnet format file complete'
+              vim.cmd 'checktime'
             end)
-          end
-        )
-      end,
-      mode = '',
-      desc = '[F]ormat file (dotnet format)',
-    },
-    {
-      '<leader>fs',
-      function()
-        local buf = vim.api.nvim_get_current_buf()
-        local file = vim.api.nvim_buf_get_name(buf)
-        local start_dir = (file ~= '' and vim.fs.dirname(file)) or vim.fn.getcwd()
-
-        local sln = vim.fs.find(function(name)
-          return name:match('%.sln$') ~= nil
-        end, { upward = true, path = start_dir })[1]
-
-        if not sln then
-          vim.notify('No .sln found upward from: ' .. start_dir, vim.log.levels.ERROR)
-          return
-        end
-
-        local root = vim.fs.dirname(sln)
-        vim.notify('dotnet format (solution) in: ' .. root)
-
-        vim.system({ 'dotnet', 'format' }, { cwd = root, text = true }, function(obj)
-          vim.schedule(function()
-            if obj.code ~= 0 then
-              vim.notify(obj.stderr ~= '' and obj.stderr or 'dotnet format failed', vim.log.levels.ERROR)
-              return
-            end
-            vim.notify('dotnet format solution complete')
-            vim.cmd('checktime')
           end)
-        end)
-      end,
-      mode = '',
-      desc = '[F]ormat solution (dotnet format)',
+        end,
+        mode = '',
+        desc = '[F]ormat file (dotnet format)',
+      },
+      {
+        '<leader>fs',
+        function()
+          local buf = vim.api.nvim_get_current_buf()
+          local file = vim.api.nvim_buf_get_name(buf)
+          local start_dir = (file ~= '' and vim.fs.dirname(file)) or vim.fn.getcwd()
+
+          local sln = vim.fs.find(function(name)
+            return name:match '%.sln$' ~= nil
+          end, { upward = true, path = start_dir })[1]
+
+          if not sln then
+            vim.notify('No .sln found upward from: ' .. start_dir, vim.log.levels.ERROR)
+            return
+          end
+
+          local root = vim.fs.dirname(sln)
+          vim.notify('dotnet format (solution) in: ' .. root)
+
+          vim.system({ 'dotnet', 'format' }, { cwd = root, text = true }, function(obj)
+            vim.schedule(function()
+              if obj.code ~= 0 then
+                vim.notify(obj.stderr ~= '' and obj.stderr or 'dotnet format failed', vim.log.levels.ERROR)
+                return
+              end
+              vim.notify 'dotnet format solution complete'
+              vim.cmd 'checktime'
+            end)
+          end)
+        end,
+        mode = '',
+        desc = '[F]ormat solution (dotnet format)',
+      },
+    },
+    opts = {
+      notify_on_error = true,
+      format_on_save = false,
+      formatters_by_ft = {
+        lua = { 'stylua' },
+        cs = { 'csharpier' },
+      },
     },
   },
-  opts = {
-    notify_on_error = true,
-    format_on_save = false,
-    formatters_by_ft = {
-      lua = { 'stylua' },
-      cs = { 'csharpier' },
-    },
-  },
-},
-{
+  {
     'saghen/blink.cmp',
     event = 'VimEnter',
     version = '1.*',
@@ -1120,35 +1116,35 @@ require('lazy').setup({
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
-{
-  'nvim-treesitter/nvim-treesitter',
-  build = ':TSUpdate',
-  lazy = false,
-  config = function()
-    require('nvim-treesitter').setup({
-      ensure_installed = {
-        'bash',
-        'c',
-        'c_sharp',
-        'diff',
-        'html',
-        'lua',
-        'luadoc',
-        'markdown',
-        'markdown_inline',
-        'query',
-        'vim',
-        'vimdoc',
-      },
-      highlight = {
-        enable = true,
-      },
-      indent = {
-        enable = true,
-      },
-    })
-  end,
-},
+  {
+    'nvim-treesitter/nvim-treesitter',
+    build = ':TSUpdate',
+    lazy = false,
+    config = function()
+      require('nvim-treesitter').setup {
+        ensure_installed = {
+          'bash',
+          'c',
+          'c_sharp',
+          'diff',
+          'html',
+          'lua',
+          'luadoc',
+          'markdown',
+          'markdown_inline',
+          'query',
+          'vim',
+          'vimdoc',
+        },
+        highlight = {
+          enable = true,
+        },
+        indent = {
+          enable = true,
+        },
+      }
+    end,
+  },
   --following comments only work if you have downloaded the kickstart repo, not just copy pasted the
   -- init.lua. If you want these files, they are in the repository, so you can just download them and
   -- place them in the correct locations.
@@ -1440,7 +1436,11 @@ end
 vim.keymap.set('i', '<C-BS>', '<C-w>', { noremap = true })
 vim.keymap.set('i', '<C-Del>', '<C-o>dw', { noremap = true })
 vim.keymap.set('n', '<leader>h', function()
+  vim.cmd 'bdelete'
   Snacks.dashboard()
 end, { noremap = true, silent = true, desc = 'Homepage' })
 
-	vim.cmd.colorscheme 'catppuccin'
+vim.cmd.colorscheme 'catppuccin'
+map('i', '<C-h>', '<C-w>', { desc = 'Delete previous word (Ctrl+Backspace)', silent = true })
+map('i', '<C-BS>', '<C-w>', { desc = 'Delete previous word (Ctrl+Backspace)', silent = true })
+vim.keymap.set('i', '<C-BS>', '<C-w>', { noremap = true })
