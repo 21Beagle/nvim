@@ -99,23 +99,6 @@ return -- lazy.nvim
 
     bootstrap_dotnet_path()
 
-    local function get_netcoredbg_path()
-      if is_windows() then
-        -- local exe_path = 'C:\\Git\\source\\repos\\netcoredbg\\build\\src\\Release\\netcoredbg.exe' 
-
-        if vim.fn.filereadable(exe_path) == 1 then
-          return exe_path
-        end
-        return nil
-      end
-
-      local bin_path = join_path(mason_root, 'netcoredbg')
-      if vim.fn.filereadable(bin_path) == 1 then
-        return bin_path
-      end
-      return nil
-    end
-
     local function assert_dotnet_available()
       if vim.fn.executable 'dotnet' == 1 then
         return
@@ -393,7 +376,6 @@ end
 
       debugger = {
         -- Prefer Mason netcoredbg if installed; otherwise let easy-dotnet-server fall back to its bundled netcoredbg
-        bin_path = get_netcoredbg_path(),
         apply_value_converters = true,
         auto_register_dap = true,
         mappings = {
@@ -525,8 +507,6 @@ end
     end)
 
     vim.keymap.set('n', '<leader>md', function()
-	local netcoredbg_path = get_netcoredbg_path()
-	print('netcoredbg_path =', netcoredbg_path)
       dotnet.debug()
     end)
 
