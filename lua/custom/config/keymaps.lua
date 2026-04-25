@@ -60,6 +60,18 @@ map('n', '<C-l>', '<cmd>vertical resize +5<CR>', { noremap = true, silent = true
 map('n', '<C-j>', '<cmd>resize -2<CR>', { noremap = true, silent = true, desc = 'Resize split down' })
 map('n', '<C-k>', '<cmd>resize +2<CR>', { noremap = true, silent = true, desc = 'Resize split up' })
 
+-- Quickfix and location list navigation
+map('n', '<leader>qo', '<cmd>copen<CR>', { noremap = true, silent = true, desc = '[Q]uickfix [O]pen' })
+map('n', '<leader>qc', '<cmd>cclose<CR>', { noremap = true, silent = true, desc = '[Q]uickfix [C]lose' })
+map('n', '<leader>qn', '<cmd>cnext<CR>', { noremap = true, silent = true, desc = '[Q]uickfix [N]ext item' })
+map('n', '<leader>qp', '<cmd>cprevious<CR>', { noremap = true, silent = true, desc = '[Q]uickfix [P]revious item' })
+map('n', '<leader>ql', '<cmd>lopen<CR>', { noremap = true, silent = true, desc = '[Q]uickfix [L]ocation list open' })
+map('n', '<leader>qL', '<cmd>lclose<CR>', { noremap = true, silent = true, desc = '[Q]uickfix [L]ocation list close' })
+map('n', ']q', '<cmd>cnext<CR>', { noremap = true, silent = true, desc = 'Next quickfix item' })
+map('n', '[q', '<cmd>cprevious<CR>', { noremap = true, silent = true, desc = 'Previous quickfix item' })
+map('n', ']l', '<cmd>lnext<CR>', { noremap = true, silent = true, desc = 'Next location-list item' })
+map('n', '[l', '<cmd>lprevious<CR>', { noremap = true, silent = true, desc = 'Previous location-list item' })
+
 local cs = require 'custom.config.colorscheme-picker'
 
 vim.keymap.set('n', '<leader>uc', cs.pick, { desc = '[U]I [C]olorscheme picker' })

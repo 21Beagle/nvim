@@ -102,6 +102,7 @@ return {
         { '<leader>d', group = '[D]ebug' },
         { '<leader>m', group = 'Dotnet' },
         { '<leader>n', group = '[N]otifications' },
+        { '<leader>q', group = '[Q]uickfix' },
         { '<leader>s', group = '[S]earch' },
         { '<leader>t', group = '[T]oggle' },
         { '<leader>u', group = '[U]I' },

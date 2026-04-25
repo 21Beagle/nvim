@@ -80,6 +80,8 @@ return {
           -- or a suggestion from your LSP for this to activate.
           map('<leader>ca', vim.lsp.buf.code_action, '[G]oto Code [A]ction', { 'n', 'x' })
 
+          map('K', vim.lsp.buf.hover, 'Hover Documentation')
+
           -- Find references for the word under your cursor.
           map('gr', require('telescope.builtin').lsp_references, '[G]oto [R]eferences')
 
@@ -108,6 +110,30 @@ return {
           --  Useful when you're not sure what type a variable is and you want to see
           --  the definition of its *type*, not where it was *defined*.
           map('gt', require('telescope.builtin').lsp_type_definitions, '[G]oto [T]ype Definition')
+
+          local function diagnostic_jump(count)
+            if vim.diagnostic.jump then
+              vim.diagnostic.jump { count = count, float = true }
+              return
+            end
+
+            if count < 0 then
+              vim.diagnostic.goto_prev { float = true }
+            else
+              vim.diagnostic.goto_next { float = true }
+            end
+          end
+
+          map('[d', function()
+            diagnostic_jump(-1)
+          end, 'Previous Diagnostic')
+
+          map(']d', function()
+            diagnostic_jump(1)
+          end, 'Next Diagnostic')
+
+          map('<leader>ce', vim.diagnostic.open_float, '[E]xplain line diagnostic')
+          map('<leader>cq', vim.diagnostic.setqflist, 'Diagnostics to [Q]uickfix')
 
           -- This function resolves a difference between neovim nightly (version 0.11) and stable (version 0.10)
           ---@param client vim.lsp.Client
