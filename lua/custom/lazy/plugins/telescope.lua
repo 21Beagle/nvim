@@ -615,7 +615,7 @@ return {
       vim.keymap.set('n', '<leader>sb', builtin.buffers, { desc = '[S]earch [B]uffers' })
 
       -- Slightly advanced example of overriding default behavior and theme
-      vim.keymap.set('n', '<leader>sb', function()
+      vim.keymap.set('n', '<leader>sB', function()
         builtin.current_buffer_fuzzy_find {
           prompt_title = 'Search Current Buffer',
           layout_strategy = 'horizontal',
@@ -625,7 +625,7 @@ return {
           sorting_strategy = 'ascending',
           previewer = true,
         }
-      end, { desc = '[/] Fuzzily search current buffer' })
+      end, { desc = '[S]earch current [B]uffer' })
       -- It's also possible to pass additional configuration options.
       --  See `:help telescope.builtin.live_grep()` for information about particular keys
       vim.keymap.set('n', '<leader>s/', function()

@@ -4,7 +4,7 @@ return {
     cmd = { 'ConformInfo' },
     keys = {
       {
-        '<leader>ff',
+        '<leader>cf',
         function()
           require('conform').format {
             async = true,
@@ -12,10 +12,10 @@ return {
           }
         end,
         mode = '',
-        desc = '[F]ormat file (Conform)',
+        desc = '[C]ode [F]ormat file (Conform)',
       },
       {
-        '<leader>fd',
+        '<leader>mf',
         function()
           local buf = vim.api.nvim_get_current_buf()
           local file = vim.api.nvim_buf_get_name(buf)
@@ -62,10 +62,10 @@ return {
           end)
         end,
         mode = '',
-        desc = '[F]ormat file (dotnet format)',
+        desc = 'Dotnet [F]ormat file',
       },
       {
-        '<leader>fs',
+        '<leader>mF',
         function()
           local buf = vim.api.nvim_get_current_buf()
           local file = vim.api.nvim_buf_get_name(buf)
@@ -97,7 +97,7 @@ return {
           end)
         end,
         mode = '',
-        desc = '[F]ormat solution (dotnet format)',
+        desc = 'Dotnet [F]ormat solution',
       },
     },
     opts = {

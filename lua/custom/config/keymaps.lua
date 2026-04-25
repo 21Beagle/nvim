@@ -3,14 +3,13 @@
 -- Doesn't interfere with single "j" so list scrolling still works.
 
 local map = vim.keymap.set
-local opts = { noremap = true, silent = true }
 
 -- jk / jj to escape insert mode
-map('i', 'jj', '<Esc>', opts)
-map('i', 'jk', '<Esc>', opts)
+map('i', 'jj', '<Esc>', { noremap = true, silent = true, desc = 'Exit insert mode' })
+map('i', 'jk', '<Esc>', { noremap = true, silent = true, desc = 'Exit insert mode' })
 
 -- Terminal mode: jj -> normal mode
-map('t', 'jj', '<C-\\><C-n>', opts)
+map('t', 'jj', '<C-\\><C-n>', { noremap = true, silent = true, desc = 'Exit terminal mode' })
 
 ----------------------------------------------------------------------
 -- Ctrl+Backspace in insert mode
@@ -22,32 +21,32 @@ map('i', '<C-BS>', '<C-w>', { desc = 'Delete previous word (Ctrl+Backspace)', si
 -- General editor keymaps
 
 -- Select all
-map('n', '<C-a>', 'ggVG', opts)
+map('n', '<C-a>', 'ggVG', { noremap = true, silent = true, desc = 'Select all' })
 
 -- Redo
-map('n', '<C-y>', '<C-r>', opts)
-map('i', '<Esc><C-y>', '<C-r>', opts)
+map('n', '<C-y>', '<C-r>', { noremap = true, silent = true, desc = 'Redo' })
+map('i', '<Esc><C-y>', '<C-r>', { noremap = true, silent = true, desc = 'Redo' })
 
 -- Normal: undo
-map('n', '<C-z>', 'u', opts)
-map('i', '<C-z>', '<Esc>u', opts)
+map('n', '<C-z>', 'u', { noremap = true, silent = true, desc = 'Undo' })
+map('i', '<C-z>', '<Esc>u', { noremap = true, silent = true, desc = 'Undo' })
 
 -- Ctrl+S to save (normal / insert / visual)
-map('n', '<C-s>', '<cmd>w<CR>', opts)
-map('i', '<C-s>', '<Esc><cmd>w<CR>', opts)
+map('n', '<C-s>', '<cmd>w<CR>', { noremap = true, silent = true, desc = 'Save file' })
+map('i', '<C-s>', '<Esc><cmd>w<CR>', { noremap = true, silent = true, desc = 'Save file' })
 
 -- VSCode-style navigation (jump list)
 map('n', '<A-h>', '<C-o>', { desc = 'Jump back' })
 map('n', '<A-l>', '<C-i>', { desc = 'Jump forward' })
 -- Move lines up and down
-map('n', '<A-Up>', ':m .-2<CR>==', opts)
-map('n', '<A-k>', ':m .-2<CR>==', opts)
-map('n', '<A-Down>', ':m .+1<CR>==', opts)
-map('n', '<A-j>', ':m .+1<CR>==', opts)
-map('v', '<A-Up>', ":m '<-2<CR>gv=gv", opts)
-map('v', '<A-k>', ":m '<-2<CR>gv=gv", opts)
-map('v', '<A-Down>', ":m '>+1<CR>gv=gv", opts)
-map('v', '<A-j>', ":m '>+1<CR>gv=gv", opts)
+map('n', '<A-Up>', ':m .-2<CR>==', { noremap = true, silent = true, desc = 'Move line up' })
+map('n', '<A-k>', ':m .-2<CR>==', { noremap = true, silent = true, desc = 'Move line up' })
+map('n', '<A-Down>', ':m .+1<CR>==', { noremap = true, silent = true, desc = 'Move line down' })
+map('n', '<A-j>', ':m .+1<CR>==', { noremap = true, silent = true, desc = 'Move line down' })
+map('v', '<A-Up>', ":m '<-2<CR>gv=gv", { noremap = true, silent = true, desc = 'Move selection up' })
+map('v', '<A-k>', ":m '<-2<CR>gv=gv", { noremap = true, silent = true, desc = 'Move selection up' })
+map('v', '<A-Down>', ":m '>+1<CR>gv=gv", { noremap = true, silent = true, desc = 'Move selection down' })
+map('v', '<A-j>', ":m '>+1<CR>gv=gv", { noremap = true, silent = true, desc = 'Move selection down' })
 
 -- Window navigation (moved off Shift so Shift can be buffers)
 map('n', '<leader>wh', '<C-w><C-h>', { desc = 'Move focus to the left window' })
@@ -63,13 +62,13 @@ map('n', '<C-k>', '<cmd>resize +2<CR>', { noremap = true, silent = true, desc = 
 
 local cs = require 'custom.config.colorscheme-picker'
 
-vim.keymap.set('n', '<leader>cs', cs.pick, { desc = 'Pick colorscheme' })
-vim.keymap.set('n', '<leader>cn', cs.next, { desc = 'Next colorscheme' })
-vim.keymap.set('n', '<leader>cp', cs.prev, { desc = 'Prev colorscheme' })
+vim.keymap.set('n', '<leader>uc', cs.pick, { desc = '[U]I [C]olorscheme picker' })
+vim.keymap.set('n', '<leader>un', cs.next, { desc = '[U]I [N]ext colorscheme' })
+vim.keymap.set('n', '<leader>up', cs.prev, { desc = '[U]I [P]revious colorscheme' })
 
 -- single-char deletes
-vim.keymap.set('n', 'x', '"_x', { noremap = true })
-vim.keymap.set('n', 'X', '"_X', { noremap = true })
+vim.keymap.set('n', 'x', '"_x', { noremap = true, desc = 'Delete character without yanking' })
+vim.keymap.set('n', 'X', '"_X', { noremap = true, desc = 'Delete previous character without yanking' })
 
 -- "substitute" (delete + insert)
 --vim.keymap.set('n', 's', '"_s', { noremap = true })
@@ -78,8 +77,8 @@ vim.keymap.set('n', 'X', '"_X', { noremap = true })
 -- blink auto complete with tab
 
 -- Keep yank register when pasting over a visual selection
-vim.keymap.set('x', 'p', '"_dP', { noremap = true, silent = true })
-vim.keymap.set('x', 'P', '"_dP', { noremap = true, silent = true })
+vim.keymap.set('x', 'p', '"_dP', { noremap = true, silent = true, desc = 'Paste without replacing register' })
+vim.keymap.set('x', 'P', '"_dP', { noremap = true, silent = true, desc = 'Paste without replacing register' })
 
 vim.keymap.set('i', '<Tab>', function()
   local ok, blink = pcall(require, 'blink.cmp')
@@ -195,8 +194,7 @@ do
     require('telescope.builtin').marks()
   end, { noremap = true, silent = true, desc = 'Marks' })
 end
-vim.keymap.set('i', '<C-BS>', '<C-w>', { noremap = true })
-vim.keymap.set('i', '<C-Del>', '<C-o>dw', { noremap = true })
+vim.keymap.set('i', '<C-Del>', '<C-o>dw', { noremap = true, desc = 'Delete next word (Ctrl+Delete)' })
 vim.keymap.set('n', '<leader>R', function()
   vim.cmd 'silent! restart'
-end, { noremap = true, silent = true, desc = 'Homepage' })
+end, { noremap = true, silent = true, desc = 'Restart Neovim' })

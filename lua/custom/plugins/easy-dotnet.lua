@@ -373,7 +373,7 @@ end
         apply_value_converters = true,
         auto_register_dap = true,
         mappings = {
-          debug_project = { lhs = '<leader>md', desc = 'debug project' },
+          debug_project = { lhs = '<leader>md', desc = 'dotnet debug project' },
           open_variable_viewer = { lhs = 'T', desc = 'open variable viewer' },
         },
       },
@@ -383,10 +383,10 @@ end
         noBuild = false,
       },
       mappings = {
-        run_test_from_buffer = { lhs = '<leader>tr', desc = 'run test from buffer' },
-        run_all_tests_from_buffer = { lhs = '<leader>ta', desc = 'run all tests from buffer' },
-        peek_stack_trace_from_buffer = { lhs = '<leader>tp', desc = 'peek stack trace from buffer' },
-        filter_failed_tests = { lhs = '<leader>tf', desc = 'filter failed tests' },
+        run_test_from_buffer = { lhs = '<leader>mr', desc = 'dotnet run test from buffer' },
+        run_all_tests_from_buffer = { lhs = '<leader>ma', desc = 'dotnet run all tests from buffer' },
+        peek_stack_trace_from_buffer = { lhs = '<leader>mp', desc = 'dotnet peek stack trace from buffer' },
+        filter_failed_tests = { lhs = '<leader>mT', desc = 'dotnet filter failed tests' },
 
         run = { lhs = 'r', desc = 'run test' },
         debug_test = { lhs = 'd', desc = 'debug test' },
@@ -410,31 +410,116 @@ end
       dotnet.secrets()
     end, {})
 
+    local function find_solution_root()
+      local buf = vim.api.nvim_get_current_buf()
+      local file = vim.api.nvim_buf_get_name(buf)
+      local start_dir = file ~= '' and vim.fs.dirname(file) or vim.fn.getcwd()
+
+      local sln = vim.fs.find(function(name)
+        return name:match '%.sln$' ~= nil
+      end, { upward = true, path = start_dir })[1]
+
+      if sln then
+        return vim.fs.dirname(sln), sln
+      end
+
+      return nil, nil
+    end
+
+    local function dotnet_cli(args, opts)
+      opts = opts or {}
+
+      local cmd = { 'dotnet' }
+      vim.list_extend(cmd, args)
+
+      local cwd = opts.cwd or select(1, find_solution_root()) or vim.fn.getcwd()
+      local title = opts.title or ('dotnet ' .. table.concat(args, ' '))
+
+      vim.notify(title .. ': ' .. cwd)
+
+      vim.system(cmd, { cwd = cwd, text = true }, function(obj)
+        vim.schedule(function()
+          if obj.code ~= 0 then
+            local msg = obj.stderr ~= '' and obj.stderr or obj.stdout
+            vim.notify(msg ~= '' and msg or (title .. ' failed'), vim.log.levels.ERROR)
+            return
+          end
+
+          vim.notify(title .. ' complete', vim.log.levels.INFO)
+          vim.cmd 'checktime'
+        end)
+      end)
+    end
+
+    local function restart_lsp()
+      local bufnr = vim.api.nvim_get_current_buf()
+      local clients = {}
+
+      if vim.lsp.get_clients then
+        clients = vim.lsp.get_clients { bufnr = bufnr }
+      else
+        clients = vim.lsp.get_active_clients { bufnr = bufnr }
+      end
+
+      if vim.fn.exists ':LspRestart' == 2 then
+        vim.cmd 'LspRestart'
+      else
+        vim.lsp.stop_client(clients)
+        vim.defer_fn(function()
+          vim.cmd 'edit'
+        end, 300)
+      end
+
+      if #clients == 0 then
+        vim.notify('LSP restart requested; no active client was attached to this buffer', vim.log.levels.WARN)
+      else
+        vim.notify('LSP restart requested', vim.log.levels.INFO)
+      end
+    end
+
     vim.keymap.set('n', '<C-p>', function()
       dotnet.run_project()
-    end)
+    end, { desc = 'Dotnet run project' })
 
-    vim.keymap.set('n', '<leader>md', function()
-      dotnet.debug()
-    end)
+    vim.keymap.set('n', '<leader>mc', function()
+      dotnet_cli({ 'clean', '-nologo', '-v:minimal' }, { title = 'Dotnet clean' })
+    end, { desc = 'Dotnet clean solution' })
 
     -- Diagnostics (more reliable): defer slightly so Roslyn has time to publish results
     vim.keymap.set('n', '<leader>mm', function()
       vim.defer_fn(function()
         dotnet.diagnostics.get_workspace_diagnostics 'warning'
       end, 400)
-    end, { desc = 'workspace diagnostics' })
+    end, { desc = 'Dotnet workspace diagnostics' })
 
     vim.keymap.set('n', '<leader>mb', function()
       dotnet.build()
-    end, { desc = 'dotnet build' })
+    end, { desc = 'Dotnet build' })
+
+    vim.keymap.set('n', '<leader>mB', function()
+      dotnet_build_to_diagnostics()
+    end, { desc = 'Dotnet build with diagnostics' })
 
     vim.keymap.set('n', '<leader>md', function()
       dotnet.debug()
-    end, { desc = 'dotnet debug' })
+    end, { desc = 'Dotnet debug' })
+
+    vim.keymap.set('n', '<leader>ml', restart_lsp, { desc = 'Dotnet restart LSP' })
+
+    vim.keymap.set('n', '<leader>mL', function()
+      dotnet_cli({ 'restore' }, { title = 'Dotnet restore' })
+    end, { desc = 'Dotnet restore' })
+
+    vim.keymap.set('n', '<leader>mR', function()
+      dotnet.run_project()
+    end, { desc = 'Dotnet run project' })
+
+    vim.keymap.set('n', '<leader>ms', function()
+      dotnet.secrets()
+    end, { desc = 'Dotnet user secrets' })
 
     vim.keymap.set('n', '<leader>mt', function()
       dotnet.testrunner()
-    end, { desc = 'dotnet test' })
+    end, { desc = 'Dotnet test runner' })
   end,
 }

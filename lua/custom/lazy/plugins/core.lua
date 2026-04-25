@@ -97,10 +97,16 @@ return {
 
       -- Document existing key chains
       spec = {
+        { '<leader>b', group = '[B]uffers' },
+        { '<leader>c', group = '[C]ode' },
+        { '<leader>d', group = '[D]ebug' },
+        { '<leader>m', group = 'Dotnet' },
+        { '<leader>n', group = '[N]otifications' },
         { '<leader>s', group = '[S]earch' },
         { '<leader>t', group = '[T]oggle' },
+        { '<leader>u', group = '[U]I' },
+        { '<leader>w', group = '[W]indows' },
         { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
-        { '<leader>m', group = '[M]isc' },
       },
     },
   },
