@@ -29,7 +29,7 @@ return {
           have[item] = true
         end
 
-        -- Persisted expects sessionoptions to include curdir/globals for sane behavior. :contentReference[oaicite:2]{index=2}
+        -- Persisted expects sessionoptions to include curdir/globals for sane behavior.
         local desired = { 'buffers', 'curdir', 'folds', 'help', 'tabpages', 'winsize', 'globals' }
         local rebuilt = {}
 
