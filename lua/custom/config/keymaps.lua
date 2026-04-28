@@ -210,3 +210,20 @@ vim.keymap.set('i', '<C-Del>', '<C-o>dw', { noremap = true, desc = 'Delete next 
 vim.keymap.set('n', '<leader>R', function()
   vim.cmd 'silent! restart'
 end, { noremap = true, silent = true, desc = 'Restart Neovim' })
+
+-- incremental selection treesitter/lsp
+vim.keymap.set({ "n", "x", "o" }, "<A-o>", function()
+	if vim.treesitter.get_parser(nil, nil, { error = false }) then
+		require("vim.treesitter._select").select_parent(vim.v.count1)
+	else
+		vim.lsp.buf.selection_range(vim.v.count1)
+	end
+end, { desc = "Select parent treesitter node or outer incremental lsp selections" })
+
+vim.keymap.set({ "n", "x", "o" }, "<A-i>", function()
+	if vim.treesitter.get_parser(nil, nil, { error = false }) then
+		require("vim.treesitter._select").select_child(vim.v.count1)
+	else
+		vim.lsp.buf.selection_range(-vim.v.count1)
+	end
+end, { desc = "Select child treesitter node or inner incremental lsp selections" })
