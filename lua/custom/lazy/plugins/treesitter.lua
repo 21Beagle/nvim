@@ -5,41 +5,8 @@ return {
     build = ':TSUpdate',
     lazy = false,
     config = function()
-      local ts = require 'nvim-treesitter'
-
-      local parsers = {
-        'bash',
-        'c',
-        'c_sharp',
-        'diff',
-        'html',
-        'lua',
-        'luadoc',
-        'markdown',
-        'markdown_inline',
-        'query',
-        'vim',
-        'vimdoc',
-      }
-
-      vim.treesitter.language.register('bash', { 'bash', 'sh' })
+      vim.treesitter.language.register('bash', { 'sh' })
       vim.treesitter.language.register('c_sharp', { 'cs', 'csharp' })
-
-      local installed = {}
-      for _, parser in ipairs(ts.get_installed 'parsers') do
-        installed[parser] = true
-      end
-
-      local missing = {}
-      for _, parser in ipairs(parsers) do
-        if not installed[parser] then
-          table.insert(missing, parser)
-        end
-      end
-
-      if #missing > 0 then
-        ts.install(missing)
-      end
 
       vim.api.nvim_create_autocmd('FileType', {
         group = vim.api.nvim_create_augroup('treesitter-start', { clear = true }),
@@ -54,6 +21,7 @@ return {
           'lua',
           'markdown',
           'query',
+          'razor',
           'sh',
           'vim',
           'vimdoc',
