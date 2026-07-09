@@ -427,42 +427,5 @@ return {
         },
       },
     }
-
-    local group = vim.api.nvim_create_augroup('VscodeDiffWinFixBuf', { clear = true })
-
-    local function looks_like_codediff_buffer(bufnr)
-      if not vim.api.nvim_buf_is_valid(bufnr) then
-        return false
-      end
-      local name = vim.api.nvim_buf_get_name(bufnr)
-      local filetype = vim.bo[bufnr].filetype
-      if filetype == 'vscode-diff' then
-        return true
-      end
-      if name:match 'vscode%-diff' or name:match 'CodeDiff' then
-        return true
-      end
-      return false
-    end
-
-    vim.api.nvim_create_autocmd({ 'BufWinEnter', 'WinEnter' }, {
-      group = group,
-      callback = function()
-        local bufnr = vim.api.nvim_get_current_buf()
-        if looks_like_codediff_buffer(bufnr) then
-          vim.wo.winfixbuf = true
-        end
-      end,
-    })
-
-    vim.api.nvim_create_autocmd({ 'BufWinLeave', 'WinLeave' }, {
-      group = group,
-      callback = function()
-        local bufnr = vim.api.nvim_get_current_buf()
-        if looks_like_codediff_buffer(bufnr) then
-          vim.wo.winfixbuf = false
-        end
-      end,
-    })
   end,
 }

@@ -55,6 +55,33 @@ return {
       },
       use_libuv_file_watcher = true,
     },
+    mappings = {
+      ['<space>'] = 'none',
+      ['<Tab>'] = 'select',
+      ['<leader>'] = 'noop',
+
+      ['P'] = {
+        'toggle_preview',
+        config = {
+          use_float = true,
+          use_image_nvim = true,
+        },
+      },
+
+      ['s'] = 'open_split',
+      ['v'] = 'open_vsplit',
+      ['t'] = 'open_tabnew',
+
+      ['a'] = 'add',
+      ['A'] = 'add_directory',
+      ['d'] = 'delete',
+      ['r'] = 'rename',
+      ['x'] = 'cut_to_clipboard',
+      ['y'] = 'copy_to_clipboard',
+      ['p'] = 'paste_from_clipboard',
+      ['c'] = 'copy',
+      ['m'] = 'move',
+    },
 
     window = {
       position = 'left',

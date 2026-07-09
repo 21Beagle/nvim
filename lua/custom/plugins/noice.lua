@@ -4,7 +4,6 @@ return {
     event = 'VimEnter',
     dependencies = {
       'MunifTanjim/nui.nvim',
-      'rcarriga/nvim-notify',
     },
     opts = {
       messages = {

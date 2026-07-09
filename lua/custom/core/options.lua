@@ -66,6 +66,7 @@ end
 if not is_vscode then
   vim.o.list = true
   vim.opt.listchars = { tab = '│ ', trail = '·', nbsp = '␣' }
+  vim.opt.wrap = false
 
   -- Preview substitutions live, as you type!
   vim.o.inccommand = 'split'

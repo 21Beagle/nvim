@@ -3,6 +3,7 @@ return {
   dependencies = {
     'nvim-lua/plenary.nvim',
     'nvim-telescope/telescope.nvim',
+    'mfussenegger/nvim-dap',
   },
   config = function()
     local dotnet = require 'easy-dotnet'
@@ -183,36 +184,34 @@ return {
       return vim.fn.fnamemodify(p, ':p')
     end
 
-local function parse_msbuild_line(line)
-  local file, lnum, col, sev, rest =
-    line:match('^(.+)%((%d+),(%d+)%)%s*:%s*(error)%s+(.*)$')
-  if not file then
-    file, lnum, col, sev, rest =
-      line:match('^(.+)%((%d+),(%d+)%)%s*:%s*(warning)%s+(.*)$')
-  end
-  if not file then
-    return nil
-  end
+    local function parse_msbuild_line(line)
+      local file, lnum, col, sev, rest = line:match '^(.+)%((%d+),(%d+)%)%s*:%s*(error)%s+(.*)$'
+      if not file then
+        file, lnum, col, sev, rest = line:match '^(.+)%((%d+),(%d+)%)%s*:%s*(warning)%s+(.*)$'
+      end
+      if not file then
+        return nil
+      end
 
-  rest = (rest or ''):gsub('%s*%b[]%s*$', '')
+      rest = (rest or ''):gsub('%s*%b[]%s*$', '')
 
-  local code, msg = rest:match('^(%S+)%s*:%s*(.*)$')
-  local message
-  if code and msg and code:match('^[A-Z]+%d+$') then
-    message = code .. ': ' .. msg
-  else
-    message = rest
-  end
+      local code, msg = rest:match '^(%S+)%s*:%s*(.*)$'
+      local message
+      if code and msg and code:match '^[A-Z]+%d+$' then
+        message = code .. ': ' .. msg
+      else
+        message = rest
+      end
 
-  local severity = (sev == 'error') and vim.diagnostic.severity.ERROR or vim.diagnostic.severity.WARN
-  return {
-    filename = normalize_path(file),
-    lnum = tonumber(lnum),
-    col = tonumber(col),
-    severity = severity,
-    message = message,
-  }
-end
+      local severity = (sev == 'error') and vim.diagnostic.severity.ERROR or vim.diagnostic.severity.WARN
+      return {
+        filename = normalize_path(file),
+        lnum = tonumber(lnum),
+        col = tonumber(col),
+        severity = severity,
+        message = message,
+      }
+    end
 
     local function clear_build_diagnostics()
       -- Clear diagnostics for all loaded buffers in this namespace
@@ -405,6 +404,129 @@ end
       },
       picker = 'telescope',
     }
+
+    local dap = require 'dap'
+
+    local dotnet_exception_mode = 'user-unhandled'
+
+    local dotnet_exception_filters = {
+      off = {},
+      ['user-unhandled'] = { 'user-unhandled' },
+      all = { 'all' },
+    }
+
+    local dotnet_exception_labels = {
+      off = 'off',
+      ['user-unhandled'] = 'user-unhandled only',
+      all = 'all exceptions',
+    }
+
+    local function dotnet_exception_apply(mode, opts)
+      opts = opts or {}
+
+      if dotnet_exception_filters[mode] == nil then
+        mode = 'user-unhandled'
+      end
+
+      dotnet_exception_mode = mode
+
+      dap.defaults.coreclr = dap.defaults.coreclr or {}
+      dap.defaults.coreclr.exception_breakpoints = dotnet_exception_filters[mode]
+
+      vim.g.dotnet_exception_breakpoints = dotnet_exception_labels[mode]
+
+      local session = dap.session()
+      if session and session.config and session.config.type == 'coreclr' then
+        dap.set_exception_breakpoints(dotnet_exception_filters[mode])
+      end
+
+      if opts.notify ~= false then
+        vim.notify('Dotnet exceptions: ' .. dotnet_exception_labels[mode], vim.log.levels.INFO)
+      end
+    end
+
+    local function dotnet_exception_select()
+      vim.ui.select({
+        { mode = 'user-unhandled', label = 'User-unhandled only' },
+        { mode = 'all', label = 'All exceptions' },
+        { mode = 'off', label = 'Off' },
+      }, {
+        prompt = 'Dotnet exception breakpoints',
+        format_item = function(item)
+          local marker = item.mode == dotnet_exception_mode and '✓ ' or '  '
+          return marker .. item.label
+        end,
+      }, function(item)
+        if item then
+          dotnet_exception_apply(item.mode)
+        end
+      end)
+    end
+
+    local function dotnet_exception_cycle()
+      if dotnet_exception_mode == 'user-unhandled' then
+        dotnet_exception_apply 'all'
+        return
+      end
+
+      if dotnet_exception_mode == 'all' then
+        dotnet_exception_apply 'off'
+        return
+      end
+
+      dotnet_exception_apply 'user-unhandled'
+    end
+
+    dotnet_exception_apply('user-unhandled', { notify = false })
+
+    dap.listeners.after.event_initialized['dotnet_exception_breakpoints'] = function(session)
+      if session and session.config and session.config.type == 'coreclr' then
+        dotnet_exception_apply(dotnet_exception_mode, { notify = false })
+        vim.notify('Dotnet exceptions: ' .. dotnet_exception_labels[dotnet_exception_mode], vim.log.levels.INFO)
+      end
+    end
+
+    vim.api.nvim_create_user_command('DotnetExceptions', function(opts)
+      local mode = opts.args
+
+      if mode == '' or mode == 'menu' then
+        dotnet_exception_select()
+        return
+      end
+
+      if mode == 'cycle' then
+        dotnet_exception_cycle()
+        return
+      end
+
+      if dotnet_exception_filters[mode] == nil then
+        vim.notify('Use: DotnetExceptions off|user-unhandled|all|menu|cycle', vim.log.levels.ERROR)
+        return
+      end
+
+      dotnet_exception_apply(mode)
+    end, {
+      nargs = '?',
+      complete = function()
+        return { 'off', 'user-unhandled', 'all', 'menu', 'cycle' }
+      end,
+    })
+
+    vim.keymap.set('n', '<leader>me', dotnet_exception_select, { desc = 'Dotnet exception breakpoint menu' })
+
+    vim.keymap.set('n', '<leader>mE', dotnet_exception_cycle, { desc = 'Dotnet cycle exception breakpoints' })
+
+    vim.keymap.set('n', '<leader>mU', function()
+      dotnet_exception_apply 'user-unhandled'
+    end, { desc = 'Dotnet break on user-unhandled exceptions' })
+
+    vim.keymap.set('n', '<leader>mA', function()
+      dotnet_exception_apply 'all'
+    end, { desc = 'Dotnet break on all exceptions' })
+
+    vim.keymap.set('n', '<leader>mX', function()
+      dotnet_exception_apply 'off'
+    end, { desc = 'Dotnet disable exception breakpoints' })
 
     vim.api.nvim_create_user_command('Secrets', function()
       dotnet.secrets()

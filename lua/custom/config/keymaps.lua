@@ -235,3 +235,9 @@ vim.keymap.set("n", "<leader>ut", function()
 		command = math.floor(vim.api.nvim_win_get_width(0) / 3) .. "vnew",
 	})
 end, { desc = "[U]ndotree toggle" })
+
+map('v', '>', '>gv', {noremap = true, silent = true, desc = 'indent'})
+map('v', '<', '<gv', {noremap = true, silent = true, desc = 'indent'})
+
+vim.keymap.set({ "n", "x", "o" }, "H", "^", { noremap = true })
+vim.keymap.set({ "n", "x", "o" }, "L", "$", { noremap = true })
