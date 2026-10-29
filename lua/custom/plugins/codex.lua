@@ -4,6 +4,7 @@ return {
     cmd = {
       'CodexToggle',
       'CodexOpen',
+      'CodexSplit',
       'CodexFile',
       'CodexSelection',
       'CodexStop',
@@ -14,6 +15,7 @@ return {
       { '<leader>aa', '<cmd>CodexToggle<CR>', desc = 'Toggle Codex' },
       { '<leader>ao', '<cmd>CodexOpen<CR>', desc = 'Open Codex' },
       { '<leader>af', '<cmd>CodexFile<CR>', desc = 'Add current file to Codex' },
+      { '<leader>as', '<cmd>CodexSplit<CR>', desc = 'Open Codex in a vertical split' },
       { '<leader>as', '<cmd>CodexSelection<CR>', mode = 'x', desc = 'Add selection to Codex' },
       { '<leader>ax', '<cmd>CodexStop<CR>', desc = 'Stop Codex session' },
       { '<leader>al', '<cmd>CodexLogin<CR>', desc = 'Sign in with ChatGPT workspace' },
@@ -22,8 +24,9 @@ return {
     },
     opts = function()
       return {
-        split = 'vertical',
+        split = 'float',
         size = 0.4,
+        float = { width = 0.85, height = 0.85, border = 'rounded', title = ' Codex ' },
         focus_after_send = true,
         -- Reuse the CLI's ChatGPT login, including the selected workspace.
         codex_cmd = { vim.fn.exepath 'codex', '-c', 'forced_login_method="chatgpt"' },
@@ -37,8 +40,33 @@ return {
         vim.api.nvim_create_user_command(name, callback, vim.tbl_extend('force', { desc = desc }, extra or {}))
       end
 
-      command('CodexToggle', codex.toggle, 'Show or hide Codex without stopping it')
-      command('CodexOpen', codex.open, 'Open the Codex terminal')
+      local ui = require 'codex.ui'
+      local function open_float()
+        if ui.is_open() and ui.state.layout ~= 'float' then
+          ui.close_window()
+        end
+        codex.open()
+        ui.focus()
+      end
+
+      command('CodexToggle', function()
+        if ui.is_open() then
+          ui.close_window()
+        else
+          open_float()
+        end
+      end, 'Show or hide the floating Codex terminal without stopping it')
+      command('CodexOpen', open_float, 'Open Codex in a floating window')
+      command('CodexSplit', function()
+        -- Move the existing terminal buffer so the Codex session stays alive.
+        codex.open()
+        if ui.state.layout ~= 'vertical' then
+          ui.close_window()
+          ui.open_window(vim.tbl_extend('force', opts, { split = 'vertical' }), ui.state.bufnr)
+        end
+        ui.focus()
+        vim.cmd 'startinsert'
+      end, 'Open Codex in a vertical split')
       command('CodexStop', codex.close, 'Stop the Codex process')
       command('CodexFile', function()
         if vim.bo.modified then
@@ -49,7 +77,7 @@ return {
       end, 'Add the saved current file to the Codex prompt')
       command('CodexSelection', function()
         local mode = vim.fn.mode()
-        local active = mode:match('^[vV\22]') ~= nil
+        local active = mode:match '^[vV\22]' ~= nil
         local first = vim.fn.getpos(active and 'v' or "'<")
         local last = vim.fn.getpos(active and '.' or "'>")
         local selection_type = active and mode or vim.fn.visualmode()
@@ -59,8 +87,13 @@ return {
         end
         local lines = vim.fn.getregion(first, last, { type = selection_type, exclusive = vim.o.selection == 'exclusive' })
         local file = vim.api.nvim_buf_get_name(0)
-        local context = string.format('File: %s:%d-%d\n\n%s', file ~= '' and file or '[No Name]',
-          math.min(first[2], last[2]), math.max(first[2], last[2]), table.concat(lines, '\n'))
+        local context = string.format(
+          'File: %s:%d-%d\n\n%s',
+          file ~= '' and file or '[No Name]',
+          math.min(first[2], last[2]),
+          math.max(first[2], last[2]),
+          table.concat(lines, '\n')
+        )
         -- Bracketed paste keeps multiline code in the composer until you submit it.
         codex.send('\27[200~' .. context .. '\27[201~', { submit = false })
       end, 'Add the visual selection to the Codex prompt', { range = true })

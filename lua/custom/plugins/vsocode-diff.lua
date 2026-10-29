@@ -381,7 +381,8 @@ return {
     },
   },
   config = function()
-    require('vscode-diff').setup {
+    require('custom.config.codediff-controls').setup()
+    require('codediff').setup {
       highlights = {
         line_insert = 'DiffAdd',
         line_delete = 'DiffDelete',
@@ -410,7 +411,7 @@ return {
       },
       keymaps = {
         view = {
-          quit = 'Q',
+          quit = { 'Q', '<leader>cgq' },
           toggle_explorer = '<leader>cE',
           next_hunk = ']c',
           prev_hunk = '[c',
@@ -418,12 +419,17 @@ return {
           prev_file = '[f',
           diff_get = 'do',
           diff_put = 'dp',
+          toggle_stage = false,
+          open_in_prev_tab = { 'o', '<leader>cgo' },
+          close_on_open_in_prev_tab = true,
         },
         explorer = {
-          select = '<CR>',
+          select = { '<CR>', '<leader>cgd' },
           hover = 'K',
-          refresh = 'R',
+          refresh = { 'R', '<leader>cgr' },
           toggle_view_mode = 'i',
+          restore = { 'U', '<leader>cgU' },
+          unstage_all = false,
         },
       },
     }
