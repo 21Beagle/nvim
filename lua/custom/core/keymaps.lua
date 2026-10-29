@@ -29,3 +29,32 @@ vim.keymap.set('n', '<leader>we', function()
 end, { desc = 'Split window horizontally', silent = true })
 
 vim.keymap.set('n', '<leader>wo', '<cmd>only<CR>', { desc = 'Close other windows' })
+
+-- Diagnostic severity filters
+vim.keymap.set('n', '<leader>ue', function()
+  vim.diagnostic.config({
+    signs = { severity = { min = vim.diagnostic.severity.ERROR } },
+    virtual_text = { severity = { min = vim.diagnostic.severity.ERROR } },
+  })
+end, { desc = 'Diagnostics: errors only' })
+
+vim.keymap.set('n', '<leader>uw', function()
+  vim.diagnostic.config({
+    signs = { severity = { min = vim.diagnostic.severity.WARN } },
+    virtual_text = { severity = { min = vim.diagnostic.severity.WARN } },
+  })
+end, { desc = 'Diagnostics: errors + warnings' })
+
+vim.keymap.set('n', '<leader>ua', function()
+  vim.diagnostic.config({
+    signs = true,
+    virtual_text = true,
+  })
+end, { desc = 'Diagnostics: all' })
+
+vim.keymap.set('n', '<leader>u0', function()
+  vim.diagnostic.config({
+    signs = false,
+    virtual_text = false,
+  })
+end, { desc = 'Diagnostics: none' })

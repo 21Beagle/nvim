@@ -13,4 +13,4 @@ require 'custom.lazy'
 require 'custom.config.autocmds'
 require 'custom.config.keymaps'
 
-pcall(vim.cmd.colorscheme, 'catppuccin')
+pcall(vim.cmd.colorscheme, 'everforest')

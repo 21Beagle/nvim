@@ -104,7 +104,6 @@ return {
         { '<leader>n', group = '[N]otifications' },
         { '<leader>q', group = '[Q]uickfix' },
         { '<leader>s', group = '[S]earch' },
-        { '<leader>t', group = '[T]oggle' },
         { '<leader>u', group = '[U]I' },
         { '<leader>w', group = '[W]indows' },
         { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },

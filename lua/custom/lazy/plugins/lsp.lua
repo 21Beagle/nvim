@@ -91,7 +91,7 @@ return {
 
           -- Jump to the definition of the word under your cursor.
           --  This is where a variable was first declared, or where a function is defined, etc.
-          --  To jump back, press <C-t>.
+          --  To jump back, press <C-o> or <A-h> (<C-t> opens the terminal).
           map('gd', require('telescope.builtin').lsp_definitions, '[G]oto [D]efinition')
 
           -- WARN: This is not Goto Definition, this is Goto Declaration.
@@ -182,9 +182,9 @@ return {
           --
           -- This may be unwanted, since they displace some of your code
           if client and client_supports_method(client, vim.lsp.protocol.Methods.textDocument_inlayHint, event.buf) then
-            map('<leader>th', function()
+            map('<leader>uh', function()
               vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled { bufnr = event.buf })
-            end, '[T]oggle Inlay [H]ints')
+            end, '[U]I Inlay [H]ints')
           end
         end,
       })

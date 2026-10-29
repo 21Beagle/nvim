@@ -411,7 +411,7 @@ return {
       keymaps = {
         view = {
           quit = 'Q',
-          toggle_explorer = '<leader>b',
+          toggle_explorer = '<leader>cE',
           next_hunk = ']c',
           prev_hunk = '[c',
           next_file = ']f',

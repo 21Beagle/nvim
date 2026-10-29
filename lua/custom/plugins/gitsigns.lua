@@ -3,8 +3,9 @@ return {
     'lewis6991/gitsigns.nvim',
     enabled = true,
     event = { 'BufReadPre', 'BufNewFile' },
-    config = function()
-      require('gitsigns').setup {
+    opts = require('kickstart.plugins.gitsigns')[1].opts,
+    config = function(_, opts)
+      require('gitsigns').setup(vim.tbl_deep_extend('force', opts or {}, {
         signcolumn = true,
         numhl = true,
         linehl = false,
@@ -22,7 +23,7 @@ return {
         current_line_blame = false,
         update_debounce = 100,
         preview_config = { border = 'rounded' },
-      }
+      }))
     end,
   },
 }

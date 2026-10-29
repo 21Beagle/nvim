@@ -34,7 +34,7 @@ return {
       cmdline = {
         enabled = true, -- enable Noice cmdline UI
 
-        view = 'cmdline', -- how the cmdline is shown
+        view = 'cmdline_popup_center', -- how the cmdline is shown
         -- other options: "cmdline", "cmdline_popup", "cmdline_popup_center"
       },
     },

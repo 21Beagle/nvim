@@ -1,5 +1,5 @@
 -- Keybindings
--- jj to escape (works in insert + command-line + terminal modes)
+-- jj to escape (works in insert + terminal modes)
 -- Doesn't interfere with single "j" so list scrolling still works.
 
 local map = vim.keymap.set
@@ -25,7 +25,7 @@ map('n', '<C-a>', 'ggVG', { noremap = true, silent = true, desc = 'Select all' }
 
 -- Redo
 map('n', '<C-y>', '<C-r>', { noremap = true, silent = true, desc = 'Redo' })
-map('i', '<Esc><C-y>', '<C-r>', { noremap = true, silent = true, desc = 'Redo' })
+map('i', '<C-y>', '<C-o><C-r>', { noremap = true, silent = true, desc = 'Redo' })
 
 -- Normal: undo
 map('n', '<C-z>', 'u', { noremap = true, silent = true, desc = 'Undo' })
@@ -34,6 +34,7 @@ map('i', '<C-z>', '<Esc>u', { noremap = true, silent = true, desc = 'Undo' })
 -- Ctrl+S to save (normal / insert / visual)
 map('n', '<C-s>', '<cmd>w<CR>', { noremap = true, silent = true, desc = 'Save file' })
 map('i', '<C-s>', '<Esc><cmd>w<CR>', { noremap = true, silent = true, desc = 'Save file' })
+map('x', '<C-s>', '<Esc><cmd>w<CR>', { noremap = true, silent = true, desc = 'Save file' })
 
 -- VSCode-style navigation (jump list)
 map('n', '<A-h>', '<C-o>', { desc = 'Jump back' })
@@ -196,7 +197,7 @@ do
     enter_terminal_mode()
   end
 
-  -- keybinding UNCHANGED
+  -- Open or focus the bottom terminal; hide it when already focused.
   map({ 'n', 't' }, '<C-t>', function()
     toggle_bottom_terminal()
   end, { noremap = true, silent = true, desc = 'Toggle bottom terminal' })

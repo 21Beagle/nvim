@@ -1,6 +1,7 @@
 return {
   {
     'mfussenegger/nvim-dap',
+    event = 'BufReadPost',
     dependencies = {
       {
         'rcarriga/nvim-dap-ui',
@@ -9,9 +10,11 @@ return {
         },
         opts = {},
         config = function(_, opts)
+          local dap = require 'dap'
           local dapui = require 'dapui'
 
           dapui.setup(vim.tbl_deep_extend('force', opts or {}, {
+            force_buffers = true,
             mappings = {
               expand = { '<CR>', 'o' },
               open = { 'g', 'p' },
@@ -23,22 +26,38 @@ return {
             layouts = {
               {
                 elements = {
-                  { id = 'breakpoints', size = 0.3 },
-                  { id = 'stacks', size = 0.7 },
+                  { id = 'scopes', size = 1.0 },
                 },
-                size = 80,
+                size = 16,
+                position = 'bottom',
+              },
+              {
+                elements = {
+                  { id = 'watches', size = 1.0 },
+                },
+                size = 16,
+                position = 'bottom',
+              },
+              {
+                elements = {
+                  { id = 'stacks', size = 1.0 },
+                },
+                size = 70,
                 position = 'right',
               },
               {
                 elements = {
-                  { id = 'scopes', size = 1.0 },
+                  { id = 'breakpoints', size = 1.0 },
                 },
-                size = 20,
-                position = 'bottom',
+                size = 70,
+                position = 'right',
               },
             },
             floating = {
               border = 'rounded',
+              mappings = {
+                close = { 'q', '<Esc>' },
+              },
             },
             render = {
               max_value_lines = 1,
@@ -49,141 +68,88 @@ return {
             },
           }))
 
-          local dap = require 'dap'
-          vim.api.nvim_create_autocmd('FileType', {
-            pattern = 'dapui_hover',
-            callback = function(args)
-              vim.keymap.set('n', 'q', '<cmd>close<cr>', {
-                buffer = args.buf,
-                silent = true,
-              })
+          local function find_element_window(element_name)
+            local element = dapui.elements[element_name]
 
-              vim.keymap.set('n', '<Esc>', '<cmd>close<cr>', {
-                buffer = args.buf,
-                silent = true,
-              })
-            end,
-          })
-          local function lock_dapui_window(win)
-            win = win or vim.api.nvim_get_current_win()
-
-            if not vim.api.nvim_win_is_valid(win) then
-              return
+            if not element then
+              return nil
             end
 
-            local buf = vim.api.nvim_win_get_buf(win)
-            local ft = vim.bo[buf].filetype
+            local ok, bufnr = pcall(element.buffer)
 
-            if not ft:match '^dapui_' then
-              return
+            if not ok or not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+              return nil
             end
 
-            pcall(function()
-              vim.api.nvim_set_option_value('winfixbuf', true, {
-                win = win,
-              })
-            end)
+            for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
+              if vim.api.nvim_win_is_valid(win) then
+                return win
+              end
+            end
 
-            pcall(function()
-              vim.api.nvim_set_option_value('winfixwidth', true, {
-                win = win,
-              })
-            end)
-
-            pcall(function()
-              vim.api.nvim_set_option_value('winfixheight', true, {
-                win = win,
-              })
-            end)
+            return nil
           end
 
-          local function open_dapui_layout()
-            local current_win = vim.api.nvim_get_current_win()
-
-            pcall(function()
-              dapui.open { reset = true }
-            end)
+          local function toggle_dapui_element(layout, element_name)
+            dapui.toggle {
+              layout = layout,
+              reset = true,
+            }
 
             vim.schedule(function()
-              for _, win in ipairs(vim.api.nvim_list_wins()) do
-                lock_dapui_window(win)
-              end
+              local win = find_element_window(element_name)
 
-              if vim.api.nvim_win_is_valid(current_win) then
-                pcall(vim.api.nvim_set_current_win, current_win)
+              if win and vim.api.nvim_win_is_valid(win) then
+                pcall(vim.api.nvim_set_current_win, win)
               end
             end)
           end
 
-          vim.api.nvim_create_autocmd({ 'FileType', 'BufWinEnter', 'WinEnter' }, {
-            pattern = 'dapui_*',
-            callback = function()
-              lock_dapui_window(vim.api.nvim_get_current_win())
-            end,
-          })
-
-          local function close_dapui_layout()
+          local function close_dapui()
             pcall(function()
               dapui.close()
             end)
           end
 
-          local function hard_reset_dapui_layout()
-            close_dapui_layout()
-
-            for _, win in ipairs(vim.api.nvim_list_wins()) do
-              local buf = vim.api.nvim_win_get_buf(win)
-              local ft = vim.bo[buf].filetype
-
-              if ft:match '^dapui_' then
-                pcall(vim.api.nvim_win_close, win, true)
-              end
-            end
-
-            open_dapui_layout()
-          end
-          local function refresh_dapui_scopes()
-            local current_win = vim.api.nvim_get_current_win()
+          local function reset_dapui()
+            close_dapui()
 
             vim.schedule(function()
-              pcall(function()
-                dapui.open()
-              end)
-
-              vim.defer_fn(function()
-                if vim.api.nvim_win_is_valid(current_win) then
-                  pcall(vim.api.nvim_set_current_win, current_win)
+              for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+                if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].filetype:match '^dapui_' then
+                  pcall(vim.api.nvim_buf_delete, bufnr, {
+                    force = true,
+                  })
                 end
-              end, 20)
+              end
             end)
           end
-          vim.api.nvim_create_user_command('DapUiOpen', open_dapui_layout, {})
-          vim.api.nvim_create_user_command('DapUiClose', close_dapui_layout, {})
-          vim.api.nvim_create_user_command('DapUiHardReset', hard_reset_dapui_layout, {})
 
-          _G.open_dapui_layout = open_dapui_layout
-          _G.close_dapui_layout = close_dapui_layout
-          _G.hard_reset_dapui_layout = hard_reset_dapui_layout
-
-          dap.listeners.after.event_initialized['dapui_config'] = function()
-            open_dapui_layout()
+          _G.toggle_dapui_scopes = function()
+            toggle_dapui_element(1, 'scopes')
           end
 
-          dap.listeners.after.event_stopped['dapui_refresh_scopes'] = function()
-            refresh_dapui_scopes()
+          _G.toggle_dapui_watches = function()
+            toggle_dapui_element(2, 'watches')
           end
 
-          dap.listeners.after.event_continued['dapui_refresh_scopes'] = function()
-            refresh_dapui_scopes()
+          _G.toggle_dapui_stacks = function()
+            toggle_dapui_element(3, 'stacks')
           end
 
-          dap.listeners.before.event_terminated['dapui_config'] = function()
-            close_dapui_layout()
+          _G.toggle_dapui_breakpoints = function()
+            toggle_dapui_element(4, 'breakpoints')
           end
 
-          dap.listeners.before.event_exited['dapui_config'] = function()
-            close_dapui_layout()
-          end
+          _G.close_dapui = close_dapui
+          _G.reset_dapui = reset_dapui
+
+          vim.api.nvim_create_user_command('DapUiClose', close_dapui, {})
+          vim.api.nvim_create_user_command('DapUiReset', reset_dapui, {})
+
+          dap.listeners.before.event_terminated['dapui_config'] = close_dapui
+          dap.listeners.before.event_exited['dapui_config'] = close_dapui
+
           local function set_dap_highlights()
             vim.api.nvim_set_hl(0, 'DapBreakpoint', {
               fg = '#ff5555',
@@ -264,9 +230,9 @@ return {
             end
 
             local win = mouse.winid
-            local buf = vim.api.nvim_win_get_buf(win)
+            local bufnr = vim.api.nvim_win_get_buf(win)
 
-            if vim.bo[buf].buftype ~= '' then
+            if vim.bo[bufnr].buftype ~= '' then
               return '<LeftMouse>'
             end
 
@@ -279,7 +245,7 @@ return {
             if mouse.wincol <= wininfo.textoff then
               vim.api.nvim_set_current_win(win)
               vim.api.nvim_win_set_cursor(win, { mouse.line, 0 })
-              require('persistent-breakpoints.api').toggle_breakpoint()
+              require('dap').toggle_breakpoint()
               return ''
             end
 
@@ -289,66 +255,11 @@ return {
             silent = true,
             desc = 'Toggle DAP breakpoint from gutter',
           })
-
-          local function continue_on_invalid_stopped_frame(session)
-            vim.defer_fn(function()
-              if not session or not session.current_frame then
-                return
-              end
-
-              local frame = session.current_frame
-              local source = frame.source or {}
-              local path = source.path
-              local line = frame.line
-
-              if not path or not line then
-                pcall(function()
-                  dap.continue()
-                end)
-                return
-              end
-
-              local bufnr = vim.fn.bufnr(path)
-
-              if bufnr == -1 then
-                pcall(function()
-                  vim.cmd.edit(vim.fn.fnameescape(path))
-                end)
-
-                bufnr = vim.fn.bufnr(path)
-              end
-
-              if bufnr == -1 or not vim.api.nvim_buf_is_loaded(bufnr) then
-                pcall(function()
-                  dap.continue()
-                end)
-                return
-              end
-
-              local line_count = vim.api.nvim_buf_line_count(bufnr)
-
-              if line < 1 or line > line_count then
-                vim.notify('DAP stopped on invalid source line, continuing', vim.log.levels.WARN)
-
-                pcall(function()
-                  dap.continue()
-                end)
-              end
-            end, 100)
-          end
-
-          dap.listeners.after.event_stopped['continue_on_invalid_stopped_frame'] = continue_on_invalid_stopped_frame
         end,
       },
       {
         'theHamsta/nvim-dap-virtual-text',
         opts = {},
-      },
-      {
-        'Weissle/persistent-breakpoints.nvim',
-        opts = {
-          load_breakpoints_event = { 'BufReadPost' },
-        },
       },
     },
     keys = {
@@ -383,7 +294,7 @@ return {
       {
         '<F9>',
         function()
-          require('persistent-breakpoints.api').toggle_breakpoint()
+          require('dap').toggle_breakpoint()
         end,
         desc = 'Debug: Toggle Breakpoint',
       },
@@ -404,7 +315,7 @@ return {
       {
         '<C-F9>',
         function()
-          require('persistent-breakpoints.api').set_log_point()
+          require('dap').set_breakpoint(nil, nil, vim.fn.input 'Log point message: ')
         end,
         desc = 'Debug: Logpoint',
       },
@@ -467,21 +378,21 @@ return {
       {
         '<F7>',
         function()
-          _G.open_dapui_layout()
+          _G.toggle_dapui_scopes()
         end,
-        desc = 'Debug: Open UI',
+        desc = 'Debug: Toggle Scopes',
       },
       {
         '<S-F7>',
         function()
-          _G.close_dapui_layout()
+          _G.close_dapui()
         end,
         desc = 'Debug: Close UI',
       },
       {
         '<F19>',
         function()
-          _G.close_dapui_layout()
+          _G.close_dapui()
         end,
         desc = 'Debug: Close UI',
       },
@@ -509,21 +420,21 @@ return {
       {
         '<leader>db',
         function()
-          require('persistent-breakpoints.api').toggle_breakpoint()
+          require('dap').toggle_breakpoint()
         end,
         desc = 'Debug: Toggle Breakpoint',
       },
       {
         '<leader>dB',
         function()
-          require('persistent-breakpoints.api').set_conditional_breakpoint()
+          require('dap').set_breakpoint(vim.fn.input 'Breakpoint condition: ')
         end,
         desc = 'Debug: Conditional Breakpoint',
       },
       {
         '<leader>dl',
         function()
-          require('persistent-breakpoints.api').set_log_point()
+          require('dap').set_breakpoint(nil, nil, vim.fn.input 'Log point message: ')
         end,
         desc = 'Debug: Logpoint',
       },
@@ -551,28 +462,22 @@ return {
       {
         '<leader>du',
         function()
-          _G.open_dapui_layout()
+          _G.close_dapui()
         end,
-        desc = 'Debug: Open UI',
+        desc = 'Debug: Close UI',
       },
       {
         '<leader>de',
         function()
-          local dapui = require 'dapui'
-
-          dapui.eval()
-          dapui.eval()
+          require('dapui').eval()
         end,
         desc = 'Debug: Eval',
       },
       {
         '<leader>dh',
         function()
-          local dapui = require 'dapui'
           local word = vim.fn.expand '<cword>'
-
-          dapui.eval(word)
-          dapui.eval(word)
+          require('dapui').eval(word)
         end,
         desc = 'Debug: Eval Word',
       },
@@ -600,62 +505,242 @@ return {
       {
         '<leader>dw',
         function()
-          require('dapui').float_element('watches', {
-            enter = true,
-            width = math.floor(vim.o.columns * 0.6),
-            height = math.floor(vim.o.lines * 0.5),
-          })
+          _G.toggle_dapui_watches()
         end,
-        desc = 'Debug: Watches',
+        desc = 'Debug: Toggle Watches',
       },
       {
         '<leader>ds',
         function()
-          require('dapui').float_element('scopes', {
-            enter = true,
-            width = math.floor(vim.o.columns * 0.6),
-            height = math.floor(vim.o.lines * 0.5),
-          })
+          _G.toggle_dapui_scopes()
         end,
-        desc = 'Debug: Scopes',
+        desc = 'Debug: Toggle Scopes',
       },
       {
         '<leader>dx',
         function()
-          require('dapui').float_element('stacks', {
-            enter = true,
-            width = math.floor(vim.o.columns * 0.6),
-            height = math.floor(vim.o.lines * 0.5),
-          })
+          _G.toggle_dapui_stacks()
         end,
-        desc = 'Debug: Stacks',
+        desc = 'Debug: Toggle Stacks',
       },
       {
         '<leader>dp',
         function()
-          require('dapui').float_element('breakpoints', {
-            enter = true,
-            width = math.floor(vim.o.columns * 0.6),
-            height = math.floor(vim.o.lines * 0.5),
-          })
+          _G.toggle_dapui_breakpoints()
         end,
-        desc = 'Debug: Breakpoints',
-      },
-      {
-        '<leader>df',
-        function()
-          local widgets = require 'dap.ui.widgets'
-          require('dapui').float_element('frames', {
-            enter = true,
-            width = math.floor(vim.o.columns * 0.6),
-            height = math.floor(vim.o.lines * 0.5),
-          })
-        end,
-        desc = 'Debug: Frames',
+        desc = 'Debug: Toggle Breakpoints',
       },
     },
     config = function()
       local dap = require 'dap'
+      local dap_breakpoints = require 'dap.breakpoints'
+      local store_path = vim.fn.stdpath('state') .. '/dap-breakpoints.json'
+      local stored_breakpoints = {}
+      local restoring = false
+      local mutation_depth = 0
+
+      local function normalize_path(path)
+        if not path or path == '' then
+          return nil
+        end
+
+        return vim.fs.normalize(vim.fn.fnamemodify(path, ':p')):lower()
+      end
+
+      local function read_store()
+        if vim.fn.filereadable(store_path) ~= 1 then
+          stored_breakpoints = {}
+          return
+        end
+
+        local ok, decoded = pcall(vim.json.decode, table.concat(vim.fn.readfile(store_path), '\n'))
+
+        if ok and type(decoded) == 'table' then
+          stored_breakpoints = decoded
+        else
+          stored_breakpoints = {}
+        end
+      end
+
+      local function write_store()
+        vim.fn.mkdir(vim.fn.fnamemodify(store_path, ':h'), 'p')
+
+        local ok, encoded = pcall(vim.json.encode, stored_breakpoints)
+
+        if not ok then
+          return
+        end
+
+        vim.fn.writefile({ encoded }, store_path)
+      end
+
+      local function can_persist_buffer(bufnr)
+        if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) or not vim.api.nvim_buf_is_loaded(bufnr) then
+          return false
+        end
+
+        if vim.bo[bufnr].buftype ~= '' then
+          return false
+        end
+
+        return normalize_path(vim.api.nvim_buf_get_name(bufnr)) ~= nil
+      end
+
+      local function sync_buffer_breakpoints(bufnr)
+        if restoring or not can_persist_buffer(bufnr) then
+          return
+        end
+
+        local path = normalize_path(vim.api.nvim_buf_get_name(bufnr))
+        local all_breakpoints = dap_breakpoints.get(bufnr)
+        local buffer_breakpoints = all_breakpoints[bufnr] or {}
+
+        if #buffer_breakpoints == 0 then
+          stored_breakpoints[path] = nil
+          write_store()
+          return
+        end
+
+        local result = {}
+
+        for _, bp in ipairs(buffer_breakpoints) do
+          result[#result + 1] = {
+            line = bp.line,
+            condition = bp.condition,
+            hitCondition = bp.hitCondition,
+            logMessage = bp.logMessage,
+          }
+        end
+
+        table.sort(result, function(a, b)
+          return a.line < b.line
+        end)
+
+        stored_breakpoints[path] = result
+        write_store()
+      end
+
+      local function restore_buffer_breakpoints(bufnr)
+        if not can_persist_buffer(bufnr) then
+          return
+        end
+
+        local path = normalize_path(vim.api.nvim_buf_get_name(bufnr))
+        local saved = stored_breakpoints[path]
+
+        if not saved or #saved == 0 then
+          return
+        end
+
+        local existing = dap_breakpoints.get(bufnr)[bufnr]
+
+        if existing and #existing > 0 then
+          return
+        end
+
+        local line_count = vim.api.nvim_buf_line_count(bufnr)
+        restoring = true
+
+        for _, bp in ipairs(saved) do
+          if type(bp.line) == 'number' and bp.line >= 1 and bp.line <= line_count then
+            dap_breakpoints.set({
+              condition = bp.condition,
+              hit_condition = bp.hitCondition,
+              log_message = bp.logMessage,
+            }, bufnr, bp.line)
+          end
+        end
+
+        restoring = false
+      end
+
+      local function schedule_sync(bufnr)
+        if restoring then
+          return
+        end
+
+        vim.schedule(function()
+          sync_buffer_breakpoints(bufnr)
+        end)
+      end
+
+      read_store()
+
+      local original_remove = dap_breakpoints.remove
+      dap_breakpoints.remove = function(bufnr, lnum)
+        mutation_depth = mutation_depth + 1
+        local removed = original_remove(bufnr, lnum)
+        mutation_depth = mutation_depth - 1
+
+        if removed and mutation_depth == 0 then
+          schedule_sync(bufnr)
+        end
+
+        return removed
+      end
+
+      local original_toggle = dap_breakpoints.toggle
+      dap_breakpoints.toggle = function(opts, bufnr, lnum)
+        local target_buf = bufnr or vim.api.nvim_get_current_buf()
+
+        mutation_depth = mutation_depth + 1
+        local result = original_toggle(opts, bufnr, lnum)
+        mutation_depth = mutation_depth - 1
+
+        if mutation_depth == 0 then
+          schedule_sync(target_buf)
+        end
+
+        return result
+      end
+
+      local original_clear = dap_breakpoints.clear
+      dap_breakpoints.clear = function(...)
+        local result = original_clear(...)
+
+        if not restoring then
+          stored_breakpoints = {}
+          write_store()
+        end
+
+        return result
+      end
+
+      vim.api.nvim_create_autocmd('BufReadPost', {
+        callback = function(args)
+          restore_buffer_breakpoints(args.buf)
+        end,
+      })
+
+      vim.api.nvim_create_autocmd('BufWritePost', {
+        callback = function(args)
+          sync_buffer_breakpoints(args.buf)
+        end,
+      })
+
+      vim.api.nvim_create_autocmd('VimLeavePre', {
+        callback = function()
+          for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+            sync_buffer_breakpoints(bufnr)
+          end
+        end,
+      })
+
+      vim.schedule(function()
+        restore_buffer_breakpoints(vim.api.nvim_get_current_buf())
+      end)
+
+      vim.api.nvim_create_user_command('DapBreakpointsSave', function()
+        for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+          sync_buffer_breakpoints(bufnr)
+        end
+
+        vim.notify('DAP breakpoints saved to ' .. store_path)
+      end, {})
+
+      vim.api.nvim_create_user_command('DapBreakpointsFile', function()
+        vim.notify(store_path)
+      end, {})
 
       local function reset_dap()
         pcall(function()
@@ -669,17 +754,13 @@ return {
         end)
 
         pcall(function()
-          require('dapui').close()
+          _G.close_dapui()
         end)
 
         pcall(function()
           dap.repl.close()
         end)
       end
-
-      vim.api.nvim_create_autocmd('VimLeavePre', {
-        callback = reset_dap,
-      })
 
       vim.api.nvim_create_user_command('DapReset', reset_dap, {})
 
