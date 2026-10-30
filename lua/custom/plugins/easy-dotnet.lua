@@ -72,6 +72,7 @@ return {
 
     local dap = require 'dap'
     local debug_adapter = require('easy-dotnet.constants').debug_adapter_name
+    require('custom.config.dotnet-stepping').setup(dap, debug_adapter)
     local debugger_path = vim.fn.exepath 'netcoredbg'
     local external_terminal
 
