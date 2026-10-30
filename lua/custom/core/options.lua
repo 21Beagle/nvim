@@ -6,6 +6,9 @@
 local is_vscode = vim.g.vscode ~= nil
 
 if not is_vscode then
+  -- Use the insert-mode cursor when typing in a terminal.
+  vim.o.guicursor = 'n-v-c-sm:block,i-ci-ve-t:ver25,r-cr-o:hor20'
+
   -- Make line numbers default
   vim.o.number = true
   -- You can also add relative line numbers, to help with jumping.

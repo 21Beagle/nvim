@@ -41,6 +41,24 @@ return {
       end
 
       local ui = require 'codex.ui'
+      local function map_close()
+        local buffer = ui.state.bufnr
+        if buffer and vim.api.nvim_buf_is_valid(buffer) then
+          vim.keymap.set('n', '<Esc><Esc>', function()
+            if vim.api.nvim_get_current_win() == ui.state.winid then
+              ui.close_window()
+            end
+          end, { buffer = buffer, desc = 'Hide Codex window' })
+        end
+      end
+      vim.api.nvim_create_autocmd('BufEnter', {
+        group = vim.api.nvim_create_augroup('CodexWindowKeys', { clear = true }),
+        callback = function()
+          -- The UI records its terminal buffer after opening the window.
+          vim.schedule(map_close)
+        end,
+      })
+      map_close()
       local function open_float()
         if ui.is_open() and ui.state.layout ~= 'float' then
           ui.close_window()

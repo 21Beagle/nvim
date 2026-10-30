@@ -1,4 +1,5 @@
 local M = {}
+local saved_theme_path = vim.fn.stdpath 'state' .. '/colorscheme.txt'
 
 local state = {
   schemes = nil,
@@ -61,6 +62,27 @@ local function try_apply(name, silent)
   return false
 end
 
+local function save_choice(name)
+  local ok, err = pcall(function()
+    vim.fn.mkdir(vim.fn.fnamemodify(saved_theme_path, ':h'), 'p')
+    if vim.fn.writefile({ name }, saved_theme_path) ~= 0 then
+      error 'Could not write saved colorscheme'
+    end
+  end)
+  if not ok then
+    vim.notify('Could not save colorscheme: ' .. tostring(err), vim.log.levels.ERROR)
+  end
+end
+
+function M.restore()
+  local ok, lines = pcall(vim.fn.readfile, saved_theme_path)
+  local name = ok and lines[1] or nil
+  if name and name ~= '' and try_apply(name, true) then
+    return
+  end
+  try_apply('everforest', true)
+end
+
 local function step(delta)
   ensure_cache()
 
@@ -74,6 +96,7 @@ local function step(delta)
     state.index = ((state.index - 1 + delta) % #state.schemes) + 1
     local name = state.schemes[state.index]
     if try_apply(name) then
+      save_choice(name)
       return
     end
   end
@@ -121,8 +144,10 @@ function M.pick()
 
   local preview_timer = vim.uv.new_timer()
   local last_preview = nil
+  local preview_version = 0
 
   local function stop_timer()
+    preview_version = preview_version + 1
     if preview_timer then
       preview_timer:stop()
     end
@@ -158,8 +183,12 @@ function M.pick()
     last_preview = name
 
     stop_timer()
+    local version = preview_version
     preview_timer:start(60, 0, function()
       vim.schedule(function()
+        if version ~= preview_version then
+          return
+        end
         try_apply(name, true)
         update_index_for(name)
       end)
@@ -206,15 +235,17 @@ function M.pick()
         }
 
         actions.select_default:replace(function()
-          committed = true
           stop_timer()
 
           local entry = action_state.get_selected_entry()
           if entry then
             local name = entry[1] or entry.value
             if name then
-              try_apply(name, false)
-              update_index_for(name)
+              committed = try_apply(name, false)
+              if committed then
+                save_choice(name)
+                update_index_for(name)
+              end
             end
           end
 
