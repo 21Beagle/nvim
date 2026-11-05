@@ -21,7 +21,6 @@ return {
           'lua',
           'markdown',
           'query',
-          'razor',
           'sh',
           'vim',
           'vimdoc',

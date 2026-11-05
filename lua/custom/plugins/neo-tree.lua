@@ -1,3 +1,16 @@
+local function open_direction(vertical, after)
+  return function(state)
+    local splitright, splitbelow = vim.o.splitright, vim.o.splitbelow
+    vim.o.splitright, vim.o.splitbelow = after, after
+    local commands = require 'neo-tree.sources.common.commands'
+    local ok, err = pcall(vertical and commands.open_vsplit or commands.open_split, state)
+    vim.o.splitright, vim.o.splitbelow = splitright, splitbelow
+    if not ok then
+      error(err)
+    end
+  end
+end
+
 return {
   'nvim-neo-tree/neo-tree.nvim',
   branch = 'v3.x',
@@ -84,6 +97,12 @@ return {
     },
 
     window = {
+      mappings = {
+        ['<leader>wsh'] = { open_direction(true, false), desc = 'Open file in left split' },
+        ['<leader>wsl'] = { open_direction(true, true), desc = 'Open file in right split' },
+        ['<leader>wsj'] = { open_direction(false, true), desc = 'Open file in split below' },
+        ['<leader>wsk'] = { open_direction(false, false), desc = 'Open file in split above' },
+      },
       position = 'left',
       width = 50,
 

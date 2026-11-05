@@ -87,6 +87,12 @@ return {
       dap.defaults.coreclr.external_terminal = external_terminal
     end
 
+    -- Current Roslyn returns semantic tokens in Razor source coordinates.
+    -- Keep Neovim's native highlighting enabled instead of easy-dotnet's blanket suppression.
+    local razor_roslyn = require 'easy-dotnet.razor.roslyn'
+    razor_roslyn.suppress_semantic_tokens = function() end
+    razor_roslyn.disable_semantic_tokens = function() end
+
     dotnet.setup {
       external_terminal = external_terminal,
       managed_terminal = { auto_hide = false },
@@ -99,7 +105,9 @@ return {
         -- nil selects the bundled debugger when netcoredbg is absent from PATH.
         bin_path = debugger_path ~= '' and debugger_path or nil,
         console = external_terminal and 'externalTerminal' or 'integratedTerminal',
-        apply_value_converters = true,
+        -- Keep inspection requests direct while stepping async Razor/LINQ code.
+        -- Converted collections require additional requests that can outlive the stop.
+        apply_value_converters = false,
         auto_register_dap = true,
         mappings = {
           open_variable_viewer = { lhs = 'T', desc = 'open variable viewer' },

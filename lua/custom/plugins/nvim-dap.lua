@@ -13,6 +13,8 @@ return {
           local dap = require 'dap'
           local dapui = require 'dapui'
 
+          require('custom.config.dap-ui-requests').setup(dap)
+
           dapui.setup(vim.tbl_deep_extend('force', opts or {}, {
             force_buffers = true,
             mappings = {
@@ -22,6 +24,7 @@ return {
               edit = 'e',
               repl = 'K',
               toggle = 't',
+              watch = 'a',
             },
             layouts = {
               {
@@ -82,7 +85,7 @@ return {
             end
 
             for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
-              if vim.api.nvim_win_is_valid(win) then
+              if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_config(win).relative == '' then
                 return win
               end
             end
@@ -105,7 +108,93 @@ return {
             end)
           end
 
+          local element_layouts = { scopes = 1, watches = 2, stacks = 3, breakpoints = 4 }
+
+          local function close_element_floats(element_name)
+            local bufnr = dapui.elements[element_name].buffer()
+            for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
+              if vim.api.nvim_win_get_config(win).relative ~= '' then
+                vim.api.nvim_win_close(win, true)
+              end
+            end
+          end
+
+          local function dock_dapui_element(element_name, toggle)
+            close_element_floats(element_name)
+            local args = { layout = element_layouts[element_name], reset = true }
+            if toggle then
+              dapui.toggle(args)
+            else
+              dapui.open(args)
+            end
+            local win = find_element_window(element_name)
+            if win then
+              vim.api.nvim_set_current_win(win)
+            end
+          end
+
+          _G.float_dapui_element = function(element_name)
+            dapui.float_element(element_name, {
+              enter = true,
+              position = 'center',
+              title = 'Debug: ' .. element_name .. ' (<leader>dD: dock, q: close)',
+              width = math.max(1, math.min(120, math.floor(vim.o.columns * 0.8))),
+              height = math.max(1, math.min(24, math.floor(vim.o.lines * 0.7))),
+            })
+          end
+          _G.dock_dapui_element = dock_dapui_element
+          _G.dock_current_dapui = function()
+            local element_name = vim.bo.filetype:match '^dapui_(.+)$'
+            if element_layouts[element_name] and vim.api.nvim_win_get_config(0).relative ~= '' then
+              dock_dapui_element(element_name, false)
+            else
+              vim.notify('Focus a Scopes, Watches, Call Stacks, or Breakpoints popup to dock it.', vim.log.levels.INFO)
+            end
+          end
+
+          -- Give all debugger floats the same focus and dismissal behavior.
+          vim.api.nvim_create_autocmd({ 'BufWinEnter', 'FileType' }, {
+            group = vim.api.nvim_create_augroup('DebugPopupWindows', { clear = true }),
+            callback = function(event)
+              local bufnr = event.buf
+              vim.schedule(function()
+                if not vim.api.nvim_buf_is_valid(bufnr) then
+                  return
+                end
+
+                local filetype = vim.bo[bufnr].filetype
+                if not (filetype:match '^dapui_' or filetype == 'dap-float') then
+                  return
+                end
+
+                for _, win in ipairs(vim.fn.win_findbuf(bufnr)) do
+                  if vim.api.nvim_win_get_config(win).relative ~= '' then
+                    local function close_popup()
+                      local current = vim.api.nvim_get_current_win()
+                      if vim.api.nvim_win_get_config(current).relative ~= '' then
+                        vim.api.nvim_win_close(current, true)
+                      end
+                    end
+
+                    for _, key in ipairs { 'q', '<Esc>' } do
+                      vim.keymap.set('n', key, close_popup, { buffer = bufnr, desc = 'Close debug popup' })
+                    end
+
+                    vim.api.nvim_set_current_win(win)
+                    break
+                  end
+                end
+              end)
+            end,
+          })
+
           local function close_dapui()
+            for _, win in ipairs(vim.api.nvim_list_wins()) do
+              local bufnr = vim.api.nvim_win_get_buf(win)
+              if vim.bo[bufnr].filetype:match '^dapui_' and vim.api.nvim_win_get_config(win).relative ~= '' then
+                vim.api.nvim_win_close(win, true)
+              end
+            end
             pcall(function()
               dapui.close()
             end)
@@ -397,96 +486,79 @@ return {
         desc = 'Debug: Close UI',
       },
       {
+        '<leader>dv',
+        function()
+          _G.float_dapui_element('scopes')
+        end,
+        desc = 'Debug: Scopes: Float',
+      },
+      {
+        '<leader>dV',
+        function()
+          _G.dock_dapui_element('scopes', true)
+        end,
+        desc = 'Debug: Scopes: Dock',
+      },
+      {
+        '<leader>dw',
+        function()
+          _G.float_dapui_element('watches')
+        end,
+        desc = 'Debug: Watches: Float',
+      },
+      {
+        '<leader>dW',
+        function()
+          _G.dock_dapui_element('watches', true)
+        end,
+        desc = 'Debug: Watches: Dock',
+      },
+      {
         '<leader>dc',
         function()
-          require('dap').continue()
+          _G.float_dapui_element('stacks')
         end,
-        desc = 'Debug: Continue',
+        desc = 'Debug: Call Stacks: Float',
       },
       {
-        '<leader>dq',
+        '<leader>dC',
         function()
-          require('dap').terminate()
+          _G.dock_dapui_element('stacks', true)
         end,
-        desc = 'Debug: Stop',
+        desc = 'Debug: Call Stacks: Dock',
       },
       {
-        '<leader>dr',
+        '<leader>dp',
         function()
-          require('dap').restart()
+          _G.float_dapui_element('breakpoints')
         end,
-        desc = 'Debug: Restart',
+        desc = 'Debug: Breakpoints: Float',
       },
       {
-        '<leader>db',
+        '<leader>dP',
         function()
-          require('dap').toggle_breakpoint()
+          _G.dock_dapui_element('breakpoints', true)
         end,
-        desc = 'Debug: Toggle Breakpoint',
-      },
-      {
-        '<leader>dB',
-        function()
-          require('dap').set_breakpoint(vim.fn.input 'Breakpoint condition: ')
-        end,
-        desc = 'Debug: Conditional Breakpoint',
-      },
-      {
-        '<leader>dl',
-        function()
-          require('dap').set_breakpoint(nil, nil, vim.fn.input 'Log point message: ')
-        end,
-        desc = 'Debug: Logpoint',
-      },
-      {
-        '<leader>dn',
-        function()
-          require('dap').step_over()
-        end,
-        desc = 'Debug: Step Over',
-      },
-      {
-        '<leader>di',
-        function()
-          require('dap').step_into()
-        end,
-        desc = 'Debug: Step Into',
-      },
-      {
-        '<leader>do',
-        function()
-          require('dap').step_out()
-        end,
-        desc = 'Debug: Step Out',
-      },
-      {
-        '<leader>du',
-        function()
-          _G.close_dapui()
-        end,
-        desc = 'Debug: Close UI',
+        desc = 'Debug: Breakpoints: Dock',
       },
       {
         '<leader>de',
         function()
-          require('dapui').eval()
+          local session = require('dap').session()
+          if not session or not session.stopped_thread_id or not session.current_frame then
+            vim.notify('Pause at a breakpoint and select a stack frame before evaluating.', vim.log.levels.WARN)
+            return
+          end
+
+          -- Each hover owns its buffer, so late replies cannot overwrite another expression.
+          local view = require('dap.ui.widgets').hover(nil, { border = 'rounded' })
+          for _, key in ipairs { 'q', '<Esc>' } do
+            vim.keymap.set('n', key, function()
+              view.close()
+            end, { buffer = view.buf, desc = 'Close debug evaluation' })
+          end
         end,
-        desc = 'Debug: Eval',
-      },
-      {
-        '<leader>dh',
-        function()
-          local word = vim.fn.expand '<cword>'
-          require('dapui').eval(word)
-        end,
-        desc = 'Debug: Eval Word',
-      },
-      {
-        '<leader>dt',
-        function()
-          require('dap').run_to_cursor()
-        end,
-        desc = 'Debug: Run to Cursor',
+        desc = 'Debug: Evaluate',
       },
       {
         '<leader>dj',
@@ -503,32 +575,18 @@ return {
         desc = 'Debug: Up Stack',
       },
       {
-        '<leader>dw',
+        '<leader>dD',
         function()
-          _G.toggle_dapui_watches()
+          _G.dock_current_dapui()
         end,
-        desc = 'Debug: Toggle Watches',
+        desc = 'Debug: Dock Popup',
       },
       {
-        '<leader>ds',
+        '<leader>du',
         function()
-          _G.toggle_dapui_scopes()
+          _G.close_dapui()
         end,
-        desc = 'Debug: Toggle Scopes',
-      },
-      {
-        '<leader>dx',
-        function()
-          _G.toggle_dapui_stacks()
-        end,
-        desc = 'Debug: Toggle Stacks',
-      },
-      {
-        '<leader>dp',
-        function()
-          _G.toggle_dapui_breakpoints()
-        end,
-        desc = 'Debug: Toggle Breakpoints',
+        desc = 'Debug: Close UI',
       },
     },
     config = function()
@@ -764,10 +822,6 @@ return {
 
       vim.api.nvim_create_user_command('DapReset', reset_dap, {})
 
-      vim.keymap.set('n', '<leader>dQ', reset_dap, {
-        silent = true,
-        desc = 'Debug: Reset DAP',
-      })
     end,
   },
 }

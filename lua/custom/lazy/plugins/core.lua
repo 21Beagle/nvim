@@ -106,6 +106,7 @@ return {
         { '<leader>s', group = '[S]earch' },
         { '<leader>u', group = '[U]I' },
         { '<leader>w', group = '[W]indows' },
+        { '<leader>ws', group = '[S]plit' },
         { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
       },
     },

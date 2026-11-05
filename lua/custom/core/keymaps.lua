@@ -20,13 +20,10 @@ vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>', { desc = 'Disab
 vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>', { desc = 'Disabled: use l' })
 vim.keymap.set('n', '<up>', '<cmd>echo "Use k to move!!"<CR>', { desc = 'Disabled: use k' })
 vim.keymap.set('n', '<down>', '<cmd>echo "Use j to move!!"<CR>', { desc = 'Disabled: use j' })
-vim.keymap.set('n', '<leader>wq', function()
-  vim.cmd 'vsplit'
-end, { desc = 'Split window vertically', silent = true })
-
-vim.keymap.set('n', '<leader>we', function()
-  vim.cmd 'split'
-end, { desc = 'Split window horizontally', silent = true })
+vim.keymap.set('n', '<leader>wsh', '<cmd>leftabove vsplit<CR>', { desc = 'Split left', silent = true })
+vim.keymap.set('n', '<leader>wsl', '<cmd>rightbelow vsplit<CR>', { desc = 'Split right', silent = true })
+vim.keymap.set('n', '<leader>wsj', '<cmd>rightbelow split<CR>', { desc = 'Split below', silent = true })
+vim.keymap.set('n', '<leader>wsk', '<cmd>leftabove split<CR>', { desc = 'Split above', silent = true })
 
 vim.keymap.set('n', '<leader>wo', '<cmd>only<CR>', { desc = 'Close other windows' })
 

@@ -5,9 +5,18 @@ return {
     lazy = false,
     dependencies = { 'amansingh-afk/milli.nvim' },
     opts = function()
-      local splash = require('milli').load({ splash = 'shader' })
+      local splash = require('milli').load { splash = 'shader' }
 
       return {
+        picker = {
+          sources = {
+            projects = {
+              finder = function()
+                return require('custom.config.projects').items()
+              end,
+            },
+          },
+        },
         dashboard = {
           enabled = true,
           width = 60,
@@ -20,7 +29,7 @@ return {
               { icon = ' ', key = 'n', desc = 'New File', action = ':ene | startinsert' },
               { icon = ' ', key = 'g', desc = 'Find Text', action = ':lua Snacks.picker.grep()' },
               { icon = ' ', key = 'r', desc = 'Recent Files', action = ':lua Snacks.picker.recent()' },
-              { icon = ' ', key = 'p', desc = 'Projects', action = ':Telescope persisted' },
+              { icon = ' ', key = 'p', desc = 'Projects', action = ':lua Snacks.picker.projects()' },
               { icon = ' ', key = 'c', desc = 'Config', action = ":lua Snacks.picker.files({ cwd = vim.fn.stdpath('config') })" },
               { icon = ' ', key = 's', desc = 'Restore Session', section = 'session' },
               { icon = '󰒲 ', key = 'L', desc = 'Lazy', action = ':Lazy', enabled = package.loaded.lazy ~= nil },
@@ -32,6 +41,9 @@ return {
             {
               section = 'projects',
               title = 'Projects',
+              dirs = function()
+                return require('custom.config.projects').dirs()
+              end,
               indent = 2,
               padding = 1,
             },
@@ -43,7 +55,7 @@ return {
     end,
     config = function(_, opts)
       require('snacks').setup(opts)
-      require('milli').snacks({ splash = 'shader', loop = true })
+      require('milli').snacks { splash = 'shader', loop = true }
     end,
   },
 }
